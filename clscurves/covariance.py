@@ -1,0 +1,136 @@
+class CovarianceEllipseGenerator:
+    """
+    Given a collection of 2D points that are assumed to be distributed
+    according to a bivariate normal distribution, compute and plot an
+    elliptical confidence region representing the distribution of the points.
+
+    PARAMETERS
+    ----------
+      data -- (2, M)-dim numpy array
+
+    SAMPLE CODE
+    -----------
+      >>> data = ...
+      >>> ax = ...
+      >>> CEG = CovarianceEllipseGenerator(data)
+      >>> CEG.create_ellipse_patch(conf = 0.95, ax = ax)
+      >>> CEG.add_ellipse_center(ax)
+    """
+
+    def __init__(self, data: np.array):
+
+        assert data.shape[0] == 2, \
+            "Data must be of shape 2xM, not %s." % str(data.shape)
+
+        self.data = data
+        self.conf = None
+        self.ellipse_data = None
+        self.ellipse_patch = None
+
+    def compute_cov_ellipse(self, conf: float = 0.95) -> Dict[str, float]:
+        """
+        Given a collection of 2D points, compute an elliptical confidence region
+        representing the distribution of the points. Find the eigendecomposition
+        of the covariance matrix of the data. The eigenvectors point in the
+        directions of the ellipses axes. The eigenvalues specify the variance of
+        the distribution in each of the principal directions. The 95% confidence
+        interval in 2D spans 2.45 standard deviations in each direction, so the width of
+        a 95% confidence ellipse in a principal direction is found by taking 4.9 *
+        sqrt(variance) in that direction.
+        PARAMETERS
+        ----------
+          conf -- confidence level (default: 0.95)
+        RETURNS
+        -------
+          ellipse-data: Dictionary of data to describe resulting confidence ellipse
+            |-- "x_center": horizontal value of ellipse center
+            |-- "y_center": vertical value of ellipse center
+            |-- "width": diameter of ellipse in first principal direction
+            |-- "height": diameter of ellipse in second principal direction
+            |-- "angle": counterclockwise rotation angle of ellipse from horizontal (in degrees)
+        """
+
+        self.conf = conf
+
+        center = np.mean(self.data, axis=1)
+        [x_center, y_center] = center.tolist()
+        c = np.cov(self.data)
+        (eigenval, eigenvec) = np.linalg.eig(c)
+        angle = np.arctan(eigenvec[1, 0] / eigenvec[0, 0]) * 180 / np.pi
+        num_std = np.sqrt(-2 * np.log(1 - conf))
+        [width, height] = 2 * num_std * np.sqrt(eigenval)
+
+        self.ellipse_data = {
+            "x_center": x_center,
+            "y_center": y_center,
+            "width": width,
+            "height": height,
+            "angle": angle
+        }
+
+        return self.ellipse_data
+
+    def create_ellipse_patch(
+            self,
+            conf: float = 0.95,
+            color: str = "black",
+            alpha: float = 0.2,
+            ax: Optional[plt.axes] = None) -> patches.Ellipse:
+        """
+        Create a Matplotlib ellipse patch for a specified confidence level.
+        Add resulting patch to ax if supplied.
+        PARAMETERS
+        ----------
+          conf -- confidence level (default: 0.95)
+          color -- color of ellipse fill (default: "black")
+          alpha -- opacity of ellipse fill (default: 0.2)
+          ax -- Matplotlib axis object (default: None)
+
+        RETURNS
+        -------
+          ellipse_patch -- Matplotlib ellipse patch
+        """
+
+        if self.conf != conf:
+            self.compute_cov_ellipse(conf)
+
+        x_center = self.ellipse_data["x_center"]
+        y_center = self.ellipse_data["y_center"]
+        width = self.ellipse_data["width"]
+        height = self.ellipse_data["height"]
+        angle = self.ellipse_data["angle"]
+
+        self.ellipse_patch = patches.Ellipse(
+            (x_center, y_center),
+            width,
+            height,
+            angle=angle,
+            linewidth=2,
+            fill=True,
+            alpha=alpha,
+            zorder=5000,
+            color=color)
+
+        if ax:
+            ax.add_patch(self.ellipse_patch)
+
+        return self.ellipse_patch
+
+    def add_ellipse_center(self, ax: plt.axes):
+        """
+        Given an input Matplotlib axis object, add an opaque white dot at the
+        center of the computed confidence ellipse.
+        PARAMETERS
+        ----------
+          ax -- Matplotlib axis object
+        """
+
+        ax.scatter(
+            self.ellipse_data["x_center"],
+            self.ellipse_data["y_center"],
+            color="white",
+            edgecolor="black",
+            linewidth=0.5,
+            zorder=10000,
+            alpha=1,
+            s=20)

@@ -1,0 +1,184 @@
+from typing import Dict, Any, Optional, List, Tuple
+
+import matplotlib
+import numpy as np
+from matplotlib import pyplot as plt
+
+from clscurves.config import RPFDictKeys
+from clscurves.covariance import CovarianceEllipseGenerator
+
+
+class RPFPlotter(RPFDictKeys):
+    """
+    A helper class to provide methods shared by each RPF plotter, which
+    streamline the process of making a single RPF plot, making a bootstrapped
+    plot, and adding a confidence ellipse to a specified operating point.
+    """
+    def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):
+        self.rpf_dict = rpf_dict
+        self.score_is_probability = score_is_probability
+
+    def _add_op_ellipse(
+            self,
+            op_value: float,
+            x_key: str,
+            y_key: str,
+            ax: plt.axes,
+            thresh_key: str = "thresh"):
+        """
+        A helper function to add a confidence ellipse to an RPF plot given a
+        threshold operating value.
+
+        Parameters
+        ----------
+        op_value
+            Threshold operating value.
+        x_key
+            rpf_dict key used in plot x axis.
+        y_key
+            rpf_dict key used in plot y axis.
+        ax
+            Matplotlib axis object.
+        thresh_key
+            rpf_dict key used for coloring (default: "thresh").
+
+        Returns
+        -------
+
+        """
+
+        # Find all entries at or above the operating point threshold
+        data = self.rpf_dict[thresh_key] >= op_value
+        size = data.shape[0]
+
+        # Find the index of the first entry at or above the operating threshold
+        op_index = size - np.sum(np.cumsum(np.diff(data, axis=0), axis=0),
+                                 axis=0)
+
+        # Find number of points to plot
+        num_points = self.rpf_dict[y_key].shape[1]
+
+        # Get x-y coordinates for each bootstrapped operating point
+        op_data = np.array([
+            self.rpf_dict[x_key][op_index, np.arange(num_points)],
+            self.rpf_dict[y_key][op_index, np.arange(num_points)]
+        ])
+
+        # Compute covariance ellipse and add to ax
+        ceg = CovarianceEllipseGenerator(op_data)
+        ceg.create_ellipse_patch(ax=ax, color="black")
+        ceg.add_ellipse_center(ax=ax)
+
+        # Add individual operating points
+        ax.scatter(
+            x=op_data[0],
+            y=op_data[1],
+            s=2,
+            c="black",
+            alpha=0.7,
+            marker=".")
+
+    def _make_plot(
+            self,
+            x: np.array,
+            y: np.array,
+            cmap: str,
+            dpi: int,
+            color_by: str,
+            cbar_rng: List[float],
+            cbar_label: str,
+            fig: Optional[plt.figure] = None,
+            ax: Optional[plt.axes] = None) -> Tuple[plt.figure, plt.axes]:
+        """
+        A helper function to create a base Matplotlib scatterplot figure for
+        RPF-related plotting.
+        """
+
+        # Create figure
+        if not ax:
+            fig = plt.figure(figsize=(10, 7), dpi=dpi)
+            ax = fig.add_subplot(1, 1, 1, aspect="equal")
+            ax.grid(True)
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+
+        # Make Color Bar
+        if cbar_rng is not None:
+            [vmin, vmax] = cbar_rng
+        else:
+            sip = self.score_is_probability or color_by == "frac"
+            vmin = 0.0 if sip else np.min(self.rpf_dict[color_by])
+            vmax = 1.0 if sip else np.max(self.rpf_dict[color_by])
+        norm = matplotlib.colors.Normalize(vmin, vmax)
+        sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))
+        cbar_label = self.cbar_dict[
+            color_by] if color_by in self.cbar_dict else "Value"
+        cbar.set_label(cbar_label)
+
+        # Make scatter plot
+        print("Making scatter plot...")
+        ax.scatter(
+            x,
+            y,
+            s=100,
+            c=self.rpf_dict[color_by][:, 0],
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            marker=".",
+            edgecolors="none",
+            zorder=int(1E4))
+
+        return fig, ax
+
+    def _make_bootstrap_plot(
+            self,
+            x: np.array,
+            y: np.array,
+            cmap: str,
+            dpi: int,
+            color_by: str,
+            cbar_rng: List[float],
+            cbar_label: str,
+            alpha: float,
+            bootstrap_color: str) -> Tuple[plt.figure, plt.axes]:
+        """
+        A helper function to add faint bootstrapped reference curves to an RPF
+        plot to visualize the confidence we have in the main RPF curve.
+        """
+        x_main = x[:, 0]
+        y_main = y[:, 0]
+        x_boot = x[:, 1:]
+        y_boot = y[:, 1:]
+
+        # Create figure
+        fig = plt.figure(figsize=(10, 7), dpi=dpi)
+        ax = fig.add_subplot(1, 1, 1, aspect="equal")
+        ax.grid(True)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+
+        # Plot faint bootstrapped curves
+        for i in range(self.rpf_dict["num_bootstrap_samples"]):
+            ax.plot(
+                x_boot[:, i],
+                y_boot[:, i],
+                alpha=alpha,
+                color=bootstrap_color,
+                linewidth=1)
+
+        # Plot main colored curve (scatter plot) with color bar
+        fig, ax = self._make_plot(
+            x_main,
+            y_main,
+            cmap,
+            dpi,
+            color_by,
+            cbar_rng,
+            cbar_label,
+            fig,
+            ax)
+
+        return fig, ax
