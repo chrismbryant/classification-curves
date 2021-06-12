@@ -1,3 +1,10 @@
+from typing import Optional, List, Tuple
+
+from matplotlib import pyplot as plt
+
+from clscurves.plotter.plotter import RPFPlotter
+
+
 class RFPlotter(RPFPlotter):
 
     def __init__(self, rpf_dict, score_is_probability):

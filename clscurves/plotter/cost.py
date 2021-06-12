@@ -1,3 +1,12 @@
+from typing import Dict, Any, Optional, List, Tuple
+
+import matplotlib
+import numpy as np
+from matplotlib import pyplot as plt
+
+from clscurves.plotter.plotter import RPFPlotter
+
+
 class CostPlotter(RPFPlotter):
 
     def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):
@@ -156,7 +165,8 @@ class CostPlotter(RPFPlotter):
             "tpr_w",
             "fpr_w",
             "frac",
-            "precision"]:
+            "precision"
+        ]:
             ax.set_xlim(0, 1)
         if x_rng:
             ax.set_xlim(*x_rng)

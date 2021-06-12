@@ -1,3 +1,12 @@
+from typing import Dict, Any, Optional, List, Tuple
+
+import numpy as np
+from matplotlib import pyplot as plt
+from scipy.ndimage import gaussian_filter1d
+
+from clscurves.plotter.plotter import RPFPlotter
+
+
 class DistPlotter(RPFPlotter):
 
     def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool,

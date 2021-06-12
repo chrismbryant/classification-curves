@@ -1,3 +1,10 @@
+from typing import Dict, Any, Optional, List, Tuple
+
+from matplotlib import pyplot as plt
+
+from clscurves.plotter.plotter import RPFPlotter
+
+
 class PRGPlotter(RPFPlotter):
     """
     "Precision-Recall-Gain" plots defined here:

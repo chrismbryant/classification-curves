@@ -1,3 +1,10 @@
+from typing import Dict, Any, Optional, List, Tuple
+
+from matplotlib import pyplot as plt
+
+from clscurves.plotter.plotter import RPFPlotter
+
+
 class ROCPlotter(RPFPlotter):
 
     def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):

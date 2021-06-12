@@ -1,11 +1,28 @@
+import warnings
+from typing import Optional, Union, List, Dict
+
+import numpy as np
+import pandas as pd
+from scipy.integrate import trapz
+
+from clscurves.config import RPFDictKeys
+from clscurves.plotter.cost import CostPlotter
+from clscurves.plotter.dist import DistPlotter
+from clscurves.plotter.pr import PRPlotter
+from clscurves.plotter.prg import PRGPlotter
+from clscurves.plotter.rf import RFPlotter
+from clscurves.plotter.roc import ROCPlotter
+from clscurves.sampler import SimpleSampler
+
+
 class RPFGenerator(
-    ROCPlotter,
-    PRPlotter,
-    PRGPlotter,
-    RFPlotter,
-    CostPlotter,
-    DistPlotter,
-    RPFDictKeys):
+        ROCPlotter,
+        PRPlotter,
+        PRGPlotter,
+        RFPlotter,
+        CostPlotter,
+        DistPlotter,
+        RPFDictKeys):
     """
     A class for computing Precision/Recall/Fraction metrics across a binary
     classification algorithm's full range of discrimination thresholds, and
@@ -343,7 +360,7 @@ class RPFGenerator(
 
             # Note: predictions shape = (num_examples, num_bootstrap_samples)
             predictions = ((scores <= t) if self.reverse_thresh else (
-                        scores >= t)).astype(int)
+                    scores >= t)).astype(int)
             tp_value = np.sum(np.logical_and(predictions == 1, labels == 1),
                               axis=0).T
             fp_value = np.sum(np.logical_and(predictions == 1, labels == 0),

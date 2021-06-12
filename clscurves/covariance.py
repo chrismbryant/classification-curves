@@ -1,3 +1,9 @@
+from typing import Dict, Optional
+
+import numpy as np
+from matplotlib import pyplot as plt, patches
+
+
 class CovarianceEllipseGenerator:
     """
     Given a collection of 2D points that are assumed to be distributed
