@@ -1,5 +1,6 @@
 from typing import Optional, List, Tuple
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 from clscurves.plotter.plotter import RPFPlotter
