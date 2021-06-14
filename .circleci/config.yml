@@ -16,9 +16,9 @@ jobs:
           paths:
             - /home/circleci/.cache/pypoetry/virtualenvs
       - run:
-          name: Run PyTest and report coverage
+          name: Run PyTest
           command: |
-            poetry run coverage run --omit="/home/circleci/.cache/pypoetry/virtualenvs" -m pytest
+            poetry run pytest
       - run:
           name: Run flake8 style checker
           command: |
