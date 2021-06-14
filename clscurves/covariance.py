@@ -16,8 +16,8 @@ class CovarianceEllipseGenerator:
     data
         (2, M)-dim numpy array.
 
-    Example
-    -------
+    Examples
+    --------
     >>> data = ...
     >>> ax = ...
     >>> ceg = CovarianceEllipseGenerator(data)
@@ -55,13 +55,14 @@ class CovarianceEllipseGenerator:
         Returns
         -------
         dict
-            Dictionary of data to describe resulting confidence ellipse
-                |-- "x_center": horizontal value of ellipse center
-                |-- "y_center": vertical value of ellipse center
-                |-- "width": diameter of ellipse in first principal direction
-                |-- "height": diameter of ellipse in second principal direction
-                |-- "angle": counterclockwise rotation angle of ellipse from
+            Dictionary of data to describe resulting confidence ellipse: {
+                "x_center": horizontal value of ellipse center
+                "y_center": vertical value of ellipse center
+                "width": diameter of ellipse in first principal direction
+                "height": diameter of ellipse in second principal direction
+                "angle": counterclockwise rotation angle of ellipse from
                     horizontal (in degrees)
+            }
         """
         self.conf = conf
 

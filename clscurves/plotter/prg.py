@@ -9,8 +9,9 @@ from clscurves.plotter.plotter import RPFPlotter
 class PRGPlotter(RPFPlotter):
     """Plot the PRG (Precision-Recall-Gain) curve.
 
-    "Precision-Recall-Gain" plots defined here:
-    `https://papers.nips.cc/paper/2015/file/33e8075e9970de0cfea955afd4644bb2-Paper.pdf`_
+    "Precision-Recall-Gain" plots defined
+    `here <https://papers.nips.cc/paper/2015/file/33e8075e9970de0cfea955afd464\
+    4bb2-Paper.pdf>`_.
 
     A "weighted recall" variant of Recall Gain is not discussed in the paper,
     and may not have any theoretical guarantees or reasonable interpretations.

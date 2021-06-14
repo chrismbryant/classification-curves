@@ -130,8 +130,8 @@ class RPFGenerator(
         seed
             Random seed for sample.
 
-        Example
-        -------
+        Examples
+        --------
         >>> rpf = RPFGenerator(
             predictions_df,
             label_column = "label",
@@ -490,12 +490,12 @@ class RPFGenerator(
         """
         Compute new RPF dicts after filling in unknown labels with 0s or 1s
         via a variety of methods:
-            * "0" -- fill unknown labels with 0
-            * "1" -- fill unknown labels with 1
-            * "imb" -- fill unknown labels with 0 or 1 probabilistically
-                according to the class imbalance of the known labels.
-            * "prob" -- fill unknown labels with 0 or 1 probabilistically
-                according to the probability-calibrated model score.
+        * "0" -- fill unknown labels with 0
+        * "1" -- fill unknown labels with 1
+        * "imb" -- fill unknown labels with 0 or 1 probabilistically according
+            to the class imbalance of the known labels.
+        * "prob" -- fill unknown labels with 0 or 1 probabilistically
+            according to the probability-calibrated model score.
         """
         scores = self.scores
         labels = self.labels
