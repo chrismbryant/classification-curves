@@ -5,28 +5,29 @@ from matplotlib import pyplot as plt, patches
 
 
 class CovarianceEllipseGenerator:
-    """
+    """A class to generate a stylized covariance elipse.
+
     Given a collection of 2D points that are assumed to be distributed
     according to a bivariate normal distribution, compute and plot an
     elliptical confidence region representing the distribution of the points.
 
-    PARAMETERS
+    Parameters
     ----------
-      data -- (2, M)-dim numpy array
+    data
+        (2, M)-dim numpy array.
 
-    SAMPLE CODE
-    -----------
-      >>> data = ...
-      >>> ax = ...
-      >>> CEG = CovarianceEllipseGenerator(data)
-      >>> CEG.create_ellipse_patch(conf = 0.95, ax = ax)
-      >>> CEG.add_ellipse_center(ax)
+    Example
+    -------
+    >>> data = ...
+    >>> ax = ...
+    >>> ceg = CovarianceEllipseGenerator(data)
+    >>> ceg.create_ellipse_patch(conf = 0.95, ax = ax)
+    >>> ceg.add_ellipse_center(ax)
     """
-
     def __init__(self, data: np.array):
 
         assert data.shape[0] == 2, \
-            "Data must be of shape 2xM, not %s." % str(data.shape)
+            f"Data must be of shape 2xM, not {data.shape}."
 
         self.data = data
         self.conf = None
@@ -34,28 +35,34 @@ class CovarianceEllipseGenerator:
         self.ellipse_patch = None
 
     def compute_cov_ellipse(self, conf: float = 0.95) -> Dict[str, float]:
-        """
-        Given a collection of 2D points, compute an elliptical confidence region
-        representing the distribution of the points. Find the eigendecomposition
-        of the covariance matrix of the data. The eigenvectors point in the
-        directions of the ellipses axes. The eigenvalues specify the variance of
-        the distribution in each of the principal directions. The 95% confidence
-        interval in 2D spans 2.45 standard deviations in each direction, so the width of
-        a 95% confidence ellipse in a principal direction is found by taking 4.9 *
-        sqrt(variance) in that direction.
-        PARAMETERS
-        ----------
-          conf -- confidence level (default: 0.95)
-        RETURNS
-        -------
-          ellipse-data: Dictionary of data to describe resulting confidence ellipse
-            |-- "x_center": horizontal value of ellipse center
-            |-- "y_center": vertical value of ellipse center
-            |-- "width": diameter of ellipse in first principal direction
-            |-- "height": diameter of ellipse in second principal direction
-            |-- "angle": counterclockwise rotation angle of ellipse from horizontal (in degrees)
-        """
+        """Compute covariance ellipse geometry.
 
+        Given a collection of 2D points, compute an elliptical confidence
+        region representing the distribution of the points. Find the
+        eigendecomposition of the covariance matrix of the data. The
+        eigenvectors point in the directions of the ellipses axes. The
+        eigenvalues specify the variance of the distribution in each of the
+        principal directions. The 95% confidence interval in 2D spans 2.45
+        standard deviations in each direction, so the width of a 95% confidence
+        ellipse in a principal direction is found by taking 4.9 *
+        sqrt(variance) in that direction.
+
+        Parameters
+        ----------
+        conf
+            Confidence level.
+
+        Returns
+        -------
+        dict
+            Dictionary of data to describe resulting confidence ellipse
+                |-- "x_center": horizontal value of ellipse center
+                |-- "y_center": vertical value of ellipse center
+                |-- "width": diameter of ellipse in first principal direction
+                |-- "height": diameter of ellipse in second principal direction
+                |-- "angle": counterclockwise rotation angle of ellipse from
+                    horizontal (in degrees)
+        """
         self.conf = conf
 
         center = np.mean(self.data, axis=1)
@@ -82,21 +89,27 @@ class CovarianceEllipseGenerator:
             color: str = "black",
             alpha: float = 0.2,
             ax: Optional[plt.axes] = None) -> patches.Ellipse:
-        """
+        """Create covariance ellipse Matplotlib patch.
+
         Create a Matplotlib ellipse patch for a specified confidence level.
         Add resulting patch to ax if supplied.
-        PARAMETERS
+
+        Parameters
         ----------
-          conf -- confidence level (default: 0.95)
-          color -- color of ellipse fill (default: "black")
-          alpha -- opacity of ellipse fill (default: 0.2)
-          ax -- Matplotlib axis object (default: None)
+        conf
+            Confidence level.
+        color
+            Color of ellipse fill.
+        alpha
+            Opacity of ellipse fill.
+        ax
+            Matplotlib axis object.
 
         RETURNS
         -------
-          ellipse_patch -- Matplotlib ellipse patch
+        patches.Ellipse
+            Matplotlib ellipse patch.
         """
-
         if self.conf != conf:
             self.compute_cov_ellipse(conf)
 
@@ -123,14 +136,16 @@ class CovarianceEllipseGenerator:
         return self.ellipse_patch
 
     def add_ellipse_center(self, ax: plt.axes):
-        """
-        Given an input Matplotlib axis object, add an opaque white dot at the
-        center of the computed confidence ellipse.
-        PARAMETERS
-        ----------
-          ax -- Matplotlib axis object
-        """
+        """Add covariance ellipse patch to existing plot.
 
+        Given an input Matplotlib axis object, add an opaque white dot at
+        the center of the computed confidence ellipse.
+
+        Parameters
+        ----------
+        ax
+            Matplotlib axis object.
+        """
         ax.scatter(
             self.ellipse_data["x_center"],
             self.ellipse_data["y_center"],

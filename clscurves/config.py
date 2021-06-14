@@ -1,6 +1,7 @@
 class RPFDictKeys:
-    """
-    A class to provide human-readable labels for each key in an rpf_dict
+    """RPF key aliases.
+
+    A class to provide human-readable labels for each key in an ``rpf_dict``
     that we might want to color an RPF plot by.
     """
     cbar_dict = {

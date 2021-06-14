@@ -9,7 +9,10 @@ from clscurves.plotter.plotter import RPFPlotter
 
 class CostPlotter(RPFPlotter):
 
-    def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):
+    def __init__(
+            self,
+            rpf_dict: Dict[str, Any],
+            score_is_probability: bool):
         super().__init__(rpf_dict, score_is_probability)
 
     def compute_cost(
@@ -45,65 +48,62 @@ class CostPlotter(RPFPlotter):
             bootstrap_alpha: float = 0.15,
             bootstrap_color: str = "black",
             return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
-        """
-        Plot the "Misclassification Cost" curve. Note: `compute_cost` must
-        be run first to obtain cost values.
-        PARAMETERS
+        """Plot the "Misclassification Cost" curve.
+
+        Note: `compute_cost` must be run first to obtain cost values.
+
+        Parameters
         ----------
+        title
+            Title of plot.
+        cmap
+            Colormap string specification.
+        log_scale
+            Boolean to specify whether the x-axis should be scaled by a log10
+            transformation.
+        x_axis
+            Name of key in rpf_dict that specifies which values to use for the
+            x coordinates of the cost curve.
+        x_label
+            Label to apply to x-axis. Defaults for common choices of x-axis
+            will be supplied if no x-label override is supplied here.
+        x_rng
+            Specify an x-axis range of the form [min_value, max_value] to
+            override the default range.
+        y_label
+            Label to apply to y-axis.
+        y_rng
+            Specify a y-axis range of the form [min_value, max_value] to
+            override the default range.
+        color_by
+            Name of key in rpf_dict that specifies which values to use when
+            coloring points along the cost curve.
+        cbar_rng
+            Specify a color bar range of the form [min_value, max_value] to
+            override the default range.
+        cbar_label
+            Custom label to apply to the color bar. If None is supplied, the
+            default ("Fraction Flagged") will be used.
+        dpi
+            Resolution in "dots per inch" of resulting figure. If not
+            specified, the Matplotlib default will be used. A good rule of
+            thumb is 150 for good quality at normal screen resolutions and 300
+            for high quality that maintains sharp features after zooming in.
+        bootstrapped
+            Specifies whether bootstrapped curves should be plotted behind the
+            main colored performance scatter plot.
+        bootstrap_alpha
+            Opacity of bootstrap curves.
+        bootstrap_color
+            Color of bootstrap curves.
+        return_fig
+            If set to True, will return (fig, ax) as a tuple instead of
+            plotting the figure.
 
-          title -- title of plot (default: "Misclassification Cost").
-          cmap -- colormap string specification (default: "rainbow").
-          log_scale -- boolean to specify whether the x-axis should be
-            scaled by a log10 transformation (default: False).
-
-          x_axis -- name of key in rpf_dict that specifies which values
-            to use for the x coordinates of the cost curve (default:
-            "thresh").
-
-          x_label -- [Optional] label to apply to x-axis. Defaults for
-            common choices of x-axis will be supplied if no x-label
-            override is supplied here (default: None).
-
-          x_rng -- [Optional] specify an x-axis range of the form
-            [min_value, max_value] to override the default range (default:
-            None).
-
-          y_label -- [Optional] label to apply to y-axis (default: "Cost").
-
-          y_rng -- [Optional] specify a y-axis range of the form
-            [min_value, max_value] to override the default range (default:
-            None).
-
-          color_by -- name of key in rpf_dict that specifies which values
-            to use when coloring points along the cost curve (default:
-            "frac").
-
-          cbar_rng -- [Optional] specify a color bar range of the form
-            [min_value, max_value] to override the default range (default:
-            None).
-
-          cbar_label -- [Optional] custom label to apply to the color bar. If
-            None is supplied, the default ("Fraction Flagged") will be used
-            (default: None).
-
-          dpi -- [Optional] resolution in "dots per inch" of resulting figure.
-            If not specified, the Matplotlib default will be used. A good rule
-            of thumb is 150 for good quality at normal screen resolutions
-            and 300 for high quality that maintains sharp features
-            after zooming in (default: None).
-
-          bootstrapped -- [Optional] specifies whether bootstrapped curves
-            should be plotted behind the main colored performance scatter plot
-            (default: False).
-
-          bootstrap_alpha -- [Optional] opacity of bootstrap curves (default:
-            0.15).
-
-          bootstrap_color -- [Optional] color of bootstrap curves (default: "black")
-
-          return_fig -- [Optional] if set to True, will return (fig, ax) as
-            a tuple instead of plotting the figure.
-
+        Returns
+        -------
+        Optional[Tuple[plt.figure, plt.axes]]
+            The plot's figure and axis object.
         """
         assert "cost" in self.rpf_dict, "Run `compute_cost` first."
 
@@ -122,9 +122,9 @@ class CostPlotter(RPFPlotter):
                 self.rpf_dict[color_by])
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-        sm.set_array([])
+        sm.set_array(np.array([]))
         cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))
-        label = "Threshold Value" if cbar_label == None else cbar_label
+        label = "Threshold Value" if cbar_label is None else cbar_label
         cbar.set_label("Fraction Flagged" if color_by == "frac" else label)
 
         # Make scatter plot
@@ -193,7 +193,5 @@ class CostPlotter(RPFPlotter):
 
         else:
             # Display and close plot
-            display(fig)
-            plt.gcf().clear()
+            plt.show()
             plt.close()
-            return

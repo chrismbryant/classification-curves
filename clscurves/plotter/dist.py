@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -9,15 +9,18 @@ from clscurves.plotter.plotter import RPFPlotter
 
 class DistPlotter(RPFPlotter):
 
-    def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool,
-                 reverse_thresh: bool):
+    def __init__(
+            self,
+            rpf_dict: Dict[str, Any],
+            score_is_probability: bool,
+            reverse_thresh: bool):
         super().__init__(rpf_dict, score_is_probability)
         self.reverse_thresh = reverse_thresh
 
     def plot_dist(
             self,
             weighted: bool = False,
-            label: str = "all",
+            label: Optional[Union[str, int]] = "all",
             kind: str = "CDF",
             kernel_size: float = 10,
             log_scale: bool = False,
@@ -32,69 +35,68 @@ class DistPlotter(RPFPlotter):
             bootstrapped: bool = False,
             bootstrap_alpha: float = 0.15,
             bootstrap_color: str = "black",
-            op_value: Optional[float] = None,
             return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
-        """
-        Plot the CDF (Cumulative Distribution Function) or PDF (Probability
-        Density Function) curve.
-        PARAMETERS
+        """Plot the data distribution.
+
+        This plots either the CDF (Cumulative Distribution Function) or PDF
+        (Probability Density Function) curve.
+
+        Parameters
         ----------
-          weighted -- specifies whether the weighted or unweighted fraction
-            flagged should be used when computing the CDF or PDF. If unweighted,
-            the fraction flagged is the number of cases flagged divided by
-            the number of cases total. If weighted, it is the sum of the
-            weights of all the cases flagged, divided by the sum of the
-            weights of all the cases (default: False).
+        weighted
+            Specifies whether the weighted or unweighted fraction flagged
+            should be used when computing the CDF or PDF. If unweighted, the
+            fraction flagged is the number of cases flagged divided by the
+            number of cases total. If weighted, it is the sum of the weights of
+            all the cases flagged, divided by the sum of the weights of all
+            the cases.
+        label
+            Class label to plot the CDF for; one of "all", 1, 0, or `None`.
+        kind
+            Either "cdf" or "pdf".
+        kernel_size
+            Used for PDF only: standard deviation of the Gaussian of kernel to
+            use when smoothing the PDF curve.
+        log_scale
+            Boolean to specify whether the x-axis should be log-scaled.
+        title
+            Title of plot.
+        cmap
+            Colormap string specification.
+        color_by
+            Name of key in rpf_dict that specifies which values to use when
+            coloring points along the PDF or CDF curve.
+        cbar_rng
+            Specify a color bar range of the form [min_value, max_value] to
+            override the default range.
+        cbar_label
+            Custom label to apply to the color bar. If `None` is supplied, a
+            default will be selected from the ``cbar_dict``.
+        x_rng
+            Range of the horizontal axis.
+        y_rng
+            Range of the vertical axis.
+        dpi
+            Resolution in "dots per inch" of resulting figure. If not
+            specified, the Matplotlib default will be used. A good rule of
+            thumb is 150 for good quality at normal screen resolutions and 300
+            for high quality that maintains sharp features after zooming in.
+        bootstrapped
+            Specifies whether bootstrapped curves should be plotted behind the
+            main colored performance scatter plot.
+        bootstrap_alpha
+            Opacity of bootstrap curves.
+        bootstrap_color
+            Color of bootstrap curves.
+        return_fig
+            If set to True, will return (fig, ax) as a tuple instead of
+            plotting the figure.
 
-          label -- class label to plot the CDF for; one of "all", `1`, `0`,
-            or `None` (default: `None`).
-
-          kind -- either "cdf" or "pdf" (default: "cdf").
-
-          kernel_size -- used for PDF only: standard deviation of the Gaussian of
-            kernel to use when smoothing the PDF curve (default: 10).
-
-          log_scale -- boolean to specify whether the x-axis should be log-scaled
-            (default: False).
-
-          title -- title of plot (default: None).
-          cmap -- colormap string specification (default: "rainbow").
-          color_by -- name of key in rpf_dict that specifies which values
-            to use when coloring points along the PDF or CDF curve (default:
-            "tpr").
-
-          cbar_rng -- [Optional] specify a color bar range of the form
-            [min_value, max_value] to override the default range (default:
-            None).
-
-          cbar_label -- [Optional] custom label to apply to the color bar. If
-            None is supplied, a default will be selected from the cbar_dict
-            (default: None).
-
-          y_rng - [Optional] range of the vertical axis (default: None).
-
-          dpi -- [Optional] resolution in "dots per inch" of resulting figure.
-            If not specified, the Matplotlib default will be used. A good rule
-            of thumb is 150 for good quality at normal screen resolutions
-            and 300 for high quality that maintains sharp features
-            after zooming in (default: None).
-
-          bootstrapped -- [Optional] specifies whether bootstrapped curves
-            should be plotted behind the main colored performance scatter plot
-            (default: False).
-
-          bootstrap_alpha -- [Optional] opacity of bootstrap curves (default:
-            0.15).
-
-          bootstrap_color -- [Optional] color of bootstrap curves (default: "black")
-
-          op_value -- [Optional] threshold value to plot a confidence ellipse
-            for when the plot is bootstrapped (default: None).
-
-          return_fig -- [Optional] if set to True, will return (fig, ax) as
-            a tuple instead of plotting the figure.
+        Returns
+        -------
+        Optional[Tuple[plt.figure, plt.axes]]
+            The plot's figure and axis object.
         """
-
         assert label in ["all", 0, 1, None], \
             "`label` must be in [\"all\", 0, 1, None]"
 
@@ -116,7 +118,7 @@ class DistPlotter(RPFPlotter):
         elif label == 0:
             denom = self.rpf_dict["neg" + _w]
             cdf = 1 - self.rpf_dict["fp" + _w] / denom
-        elif label == None:
+        else:
             denom = self.rpf_dict["unk" + _w]
             cdf = 1 - self.rpf_dict["up" + _w] / denom
 
@@ -129,31 +131,24 @@ class DistPlotter(RPFPlotter):
         dx = np.diff(x, axis=0)
         zeros = np.zeros([1, dy.shape[1]])
         pdf = np.nan_to_num(
-            np.concatenate([zeros, dy], axis=0) / \
+            np.concatenate([zeros, dy], axis=0) /
             np.concatenate([zeros, dx], axis=0)
         )
 
         # Smooth y if it's a PDF
-        y = cdf if kind == "cdf" else gaussian_filter1d(pdf, kernel_size,
-                                                        axis=0)
+        y = cdf if kind == "cdf" else gaussian_filter1d(
+            pdf,
+            kernel_size,
+            axis=0)
 
         # Make plot
         if not bootstrapped:
-            fig, ax = self._make_plot(x[:, 0], y[:, 0], cmap, dpi, color_by,
-                                      cbar_rng, cbar_label)
+            fig, ax = self._make_plot(
+                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label)
         else:
             fig, ax = self._make_bootstrap_plot(
                 x, y, cmap, dpi, color_by, cbar_rng,
                 cbar_label, bootstrap_alpha, bootstrap_color)
-
-        # Plot 95% confidence ellipse
-        if op_value is not None:
-            self._add_op_ellipse(
-                op_value=op_value,
-                x_key=x_key,
-                y_key=y_key,
-                ax=ax,
-                thresh_key=color_by)
 
         # Change x-axis range
         if x_rng:
@@ -177,7 +172,9 @@ class DistPlotter(RPFPlotter):
         # Set labels
         weight_string = "Weighted " if weighted else ""
         label_string = f": Label = {label}" if label in [0, 1, None] else ""
-        title = f"CDF{label_string}" if kind == "cdf" else f"PDF{label_string}"
+        default_title = f"{weight_string}CDF{label_string}" if kind == "cdf" \
+            else f"{weight_string}PDF{label_string}"
+        title = default_title if title is None else title
         ax.set_xlabel("Score")
         ax.set_ylabel(
             "Cumulative Distribution" if kind == "cdf" else "Density")
@@ -188,10 +185,8 @@ class DistPlotter(RPFPlotter):
 
         else:
             # Display and close plot
-            display(fig)
-            plt.gcf().clear()
+            plt.show()
             plt.close()
-            return
 
     def plot_pdf(self, **kwargs) -> Optional[Tuple[plt.figure, plt.axes]]:
         return self.plot_dist(kind="pdf", **kwargs)

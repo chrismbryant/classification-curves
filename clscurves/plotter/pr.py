@@ -23,57 +23,55 @@ class PRPlotter(RPFPlotter):
             bootstrapped: bool = False,
             bootstrap_alpha: float = 0.15,
             bootstrap_color: str = "black",
-            op_value: Optional[str] = None,
+            op_value: Optional[float] = None,
             return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
-        """
-        Plot the PR (Precision & Recall) curve.
-        PARAMETERS
+        """Plot the PR (Precision & Recall) curve.
+
+        Parameters
         ----------
-          weighted -- specifies whether the weighted or unweighted TPR
-            (i.e. recall) should be used. For example, TPR (= tp/pos), if
-            unweighted, is the number of positive cases captured above a
-            threshold, divided by the total number of positive cases. If
-            weighted, it is the sum of weights (or "amounts") associated
-            with each positive case captured above a threshold, divided by
-            the sum of weights associated with all positive cases. For the
-            PR curve, this weighting applies only to the TPR axis (default:
-            False).
-
-          title -- title of plot (default: "Precision Recall Curve").
-          cmap -- colormap string specification (default: "rainbow").
-          color_by -- name of key in rpf_dict that specifies which values
-            to use when coloring points along the PR curve; this should
-            be either "frac" for fraction of cases flagged or "thresh" for
-            score discrimination threshold (default: "thresh").
-          cbar_rng -- [Optional] specify a color bar range of the form
-            [min_value, max_value] to override the default range (default:
-            None).
-
-          cbar_label -- [Optional] custom label to apply to the color bar. If
-            None is supplied, the default ("Threshold Value" or "Fraction
-            Flagged", depending on the color_by value) will be used
-            (default: None).
-
-          dpi -- [Optional] resolution in "dots per inch" of resulting figure.
-            If not specified, the Matplotlib default will be used. A good rule
-            of thumb is 150 for good quality at normal screen resolutions
-            and 300 for high quality that maintains sharp features
-            after zooming in (default: None).
-
-          bootstrapped -- [Optional] specifies whether bootstrapped curves
-            should be plotted behind the main colored performance scatter plot
-            (default: False).
-
-          bootstrap_alpha -- [Optional] opacity of bootstrap curves (default:
-            0.15).
-
-          bootstrap_color -- [Optional] color of bootstrap curves (default: "black")
-
-          op_value -- [Optional] threshold value to plot a confidence ellipse
-            for when the plot is bootstrapped (default: None).
-
-          return_fig -- [Optional] if set to True, will return (fig, ax) as
-            a tuple instead of plotting the figure.
+        weighted
+            Specifies whether the weighted or unweighted TPR (i.e. recall)
+            should be used. For example, TPR (= tp/pos), if unweighted, is the
+            number of positive cases captured above a threshold, divided by the
+            total number of positive cases. If weighted, it is the sum of
+            weights (or "amounts") associated with each positive case captured
+            above a threshold, divided by the sum of weights associated with
+            all positive cases. For the PR curve, this weighting applies only
+            to the TPR axis.
+        title
+            Title of plot.
+        cmap
+            Colormap string specification.
+        color_by
+            Name of key in rpf_dict that specifies which values to use when
+            coloring points along the PR curve; this should be either "frac"
+            for fraction of cases flagged or "thresh" for score discrimination
+            threshold.
+        cbar_rng
+            Specify a color bar range of the form [min_value, max_value] to
+            override the default range.
+        cbar_label
+            Custom label to apply to the color bar. If None is supplied, the
+            default ("Threshold Value" or "Fraction Flagged", depending on the
+            color_by value) will be used.
+        dpi
+            Resolution in "dots per inch" of resulting figure. If not
+            specified, the Matplotlib default will be used. A good rule of
+            thumb is 150 for good quality at normal screen resolutions and 300
+            for high quality that maintains sharp features after zooming in.
+        bootstrapped
+            Sspecifies whether bootstrapped curves should be plotted behind the
+            main colored performance scatter plot.
+        bootstrap_alpha
+            Opacity of bootstrap curves.
+        bootstrap_color
+            Color of bootstrap curves.
+        op_value
+            Threshold value to plot a confidence ellipse for when the plot is
+            bootstrapped.
+        return_fig
+            If set to True, will return (fig, ax) as a tuple instead of
+            plotting the figure.
         """
 
         # Specify which values to plot in X and Y
@@ -84,8 +82,8 @@ class PRPlotter(RPFPlotter):
 
         # Make plot
         if not bootstrapped:
-            fig, ax = self._make_plot(x[:, 0], y[:, 0], cmap, dpi, color_by,
-                                      cbar_rng, cbar_label)
+            fig, ax = self._make_plot(
+                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label)
         else:
             fig, ax = self._make_bootstrap_plot(
                 x, y, cmap, dpi, color_by, cbar_rng,
@@ -107,12 +105,13 @@ class PRPlotter(RPFPlotter):
             x=0.92,
             y=0.9,
             s="%sClass Imb. = %.1f : 1" % (
-            "Mean " if bootstrapped else "", class_ratio),
+                "Mean " if bootstrapped else "", class_ratio),
             ha="right",
             va="center",
-            bbox=dict(facecolor="gray",
-                      alpha=0.1,
-                      boxstyle="round"))
+            bbox=dict(
+                facecolor="gray",
+                alpha=0.1,
+                boxstyle="round"))
 
         # Plot 95% confidence ellipse
         if op_value is not None:
@@ -134,7 +133,5 @@ class PRPlotter(RPFPlotter):
 
         else:
             # Display and close plot
-            display(fig)
-            plt.gcf().clear()
+            plt.show()
             plt.close()
-            return

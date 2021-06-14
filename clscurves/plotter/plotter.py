@@ -9,10 +9,11 @@ from clscurves.covariance import CovarianceEllipseGenerator
 
 
 class RPFPlotter(RPFDictKeys):
-    """
-    A helper class to provide methods shared by each RPF plotter, which
-    streamline the process of making a single RPF plot, making a bootstrapped
-    plot, and adding a confidence ellipse to a specified operating point.
+    """A helper class to provide methods shared by each RPF plotter.
+
+    These methods streamline the process of making a single RPF plot, making a
+    bootstrapped plot, and adding a confidence ellipse to a specified operating
+    point.
     """
     def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):
         self.rpf_dict = rpf_dict
@@ -25,8 +26,7 @@ class RPFPlotter(RPFDictKeys):
             y_key: str,
             ax: plt.axes,
             thresh_key: str = "thresh"):
-        """
-        A helper function to add a confidence ellipse to an RPF plot given a
+        """A helper function to add a confidence ellipse to an RPF plot given a
         threshold operating value.
 
         Parameters
@@ -41,10 +41,6 @@ class RPFPlotter(RPFDictKeys):
             Matplotlib axis object.
         thresh_key
             rpf_dict key used for coloring (default: "thresh").
-
-        Returns
-        -------
-
         """
 
         # Find all entries at or above the operating point threshold
@@ -52,8 +48,8 @@ class RPFPlotter(RPFDictKeys):
         size = data.shape[0]
 
         # Find the index of the first entry at or above the operating threshold
-        op_index = size - np.sum(np.cumsum(np.diff(data, axis=0), axis=0),
-                                 axis=0)
+        op_index = size - np.sum(
+            np.cumsum(np.diff(data, axis=0), axis=0), axis=0)
 
         # Find number of points to plot
         num_points = self.rpf_dict[y_key].shape[1]
@@ -89,9 +85,8 @@ class RPFPlotter(RPFDictKeys):
             cbar_label: str,
             fig: Optional[plt.figure] = None,
             ax: Optional[plt.axes] = None) -> Tuple[plt.figure, plt.axes]:
-        """
-        A helper function to create a base Matplotlib scatterplot figure for
-        RPF-related plotting.
+        """A helper function to create a base Matplotlib scatter plot figure
+        for RPF-related plotting.
         """
 
         # Create figure
@@ -111,10 +106,11 @@ class RPFPlotter(RPFDictKeys):
             vmax = 1.0 if sip else np.max(self.rpf_dict[color_by])
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-        sm.set_array([])
+        sm.set_array(np.array([]))
         cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))
-        cbar_label = self.cbar_dict[
+        default_cbar_label = self.cbar_dict[
             color_by] if color_by in self.cbar_dict else "Value"
+        cbar_label = default_cbar_label if cbar_label is None else cbar_label
         cbar.set_label(cbar_label)
 
         # Make scatter plot
@@ -144,9 +140,8 @@ class RPFPlotter(RPFDictKeys):
             cbar_label: str,
             alpha: float,
             bootstrap_color: str) -> Tuple[plt.figure, plt.axes]:
-        """
-        A helper function to add faint bootstrapped reference curves to an RPF
-        plot to visualize the confidence we have in the main RPF curve.
+        """A helper function to add faint bootstrapped reference curves to an
+        RPF plot to visualize the confidence we have in the main RPF curve.
         """
         x_main = x[:, 0]
         y_main = y[:, 0]

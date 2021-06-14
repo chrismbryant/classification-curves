@@ -1,22 +1,22 @@
 from typing import Dict, Any, Optional, List, Tuple
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 from clscurves.plotter.plotter import RPFPlotter
 
 
 class PRGPlotter(RPFPlotter):
-    """
+    """Plot the PRG (Precision-Recall-Gain) curve.
+
     "Precision-Recall-Gain" plots defined here:
-    https://papers.nips.cc/paper/2015/file/33e8075e9970de0cfea955afd4644bb2-Paper.pdf
+    `https://papers.nips.cc/paper/2015/file/33e8075e9970de0cfea955afd4644bb2-Paper.pdf`_
 
-    A "weighted recall" variant of Recall Gain is not discussed
-    in the paper, and may not have any theoretical guarantees or
-    reasonable interpretations. Because it's unclear how a positive-
-    example weight should affect the quantities in a PRG plot, we
-    do not support weighted plotting at this time.
+    A "weighted recall" variant of Recall Gain is not discussed in the paper,
+    and may not have any theoretical guarantees or reasonable interpretations.
+    Because it's unclear how a positive-example weight should affect the
+    quantities in a PRG plot, we do not support weighted plotting at this time.
     """
-
     def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):
         super().__init__(rpf_dict, score_is_probability)
 
@@ -31,48 +31,48 @@ class PRGPlotter(RPFPlotter):
             bootstrapped: bool = False,
             bootstrap_alpha: float = 0.15,
             bootstrap_color: str = "black",
-            op_value: Optional[str] = None,
+            op_value: Optional[float] = None,
             return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
-        """
-        Plot the PR (Precision & Recall) curve.
-        PARAMETERS
+        """Plot the PR (Precision & Recall) curve.
+
+        Parameters
         ----------
-          title -- title of plot (default: "Precision-Recall-Gain Curve").
-          cmap -- colormap string specification (default: "rainbow").
-          color_by -- name of key in rpf_dict that specifies which values
-            to use when coloring points along the PRG curve; this should
-            be either "frac" for fraction of cases flagged or "thresh" for
-            score discrimination threshold (default: "thresh").
-          cbar_rng -- [Optional] specify a color bar range of the form
-            [min_value, max_value] to override the default range (default:
-            None).
-
-          cbar_label -- [Optional] custom label to apply to the color bar. If
-            None is supplied, the default ("Threshold Value" or "Fraction
-            Flagged", depending on the color_by value) will be used
-            (default: None).
-
-          dpi -- [Optional] resolution in "dots per inch" of resulting figure.
-            If not specified, the Matplotlib default will be used. A good rule
-            of thumb is 150 for good quality at normal screen resolutions
-            and 300 for high quality that maintains sharp features
-            after zooming in (default: None).
-
-          bootstrapped -- [Optional] specifies whether bootstrapped curves
-            should be plotted behind the main colored performance scatter plot
-            (default: False).
-
-          bootstrap_alpha -- [Optional] opacity of bootstrap curves (default:
-            0.15).
-
-          bootstrap_color -- [Optional] color of bootstrap curves (default: "black")
-
-          op_value -- [Optional] threshold value to plot a confidence ellipse
-            for when the plot is bootstrapped (default: None).
-
-          return_fig -- [Optional] if set to True, will return (fig, ax) as
-            a tuple instead of plotting the figure (default: False).
+        title
+            Title of plot.
+        cmap
+            Colormap string specification.
+        color_by
+            Name of key in rpf_dict that specifies which values to use when
+            coloring points along the PRG curve; this should be either "frac"
+            for fraction of cases flagged or "thresh" for score discrimination
+            threshold.
+        cbar_rng
+            Specify a color bar range of the form [min_value, max_value] to
+            override the default range.
+        cbar_label
+            Custom label to apply to the color bar. If None is supplied,
+            the default ("Threshold Value" or "Fraction Flagged", depending on
+            the ``color_by`` value) will be used.
+        dpi
+            Resolution in "dots per inch" of resulting figure. If not
+            specified, the Matplotlib default will be used. A good rule of
+            thumb is 150 for good quality at normal screen resolutions and 300
+            for high quality that maintains sharp features after zooming in.
+        bootstrapped
+            Specifies whether bootstrapped curves should be plotted behind the
+            main colored performance scatter plot.
+        bootstrap_alpha
+            Opacity of bootstrap curves.
+        bootstrap_color
+            Color of bootstrap curves.
+        op_value
+            Threshold value to plot a confidence ellipse for when the plot is
+            bootstrapped.
+        return_fig
+            If set to True, will return (fig, ax) as a tuple instead of
+            plotting the figure.
         """
+
         # Specify which values to plot in X and Y
         x_key = "recall_gain"
         y_key = "precision_gain"
@@ -81,8 +81,8 @@ class PRGPlotter(RPFPlotter):
 
         # Make plot
         if not bootstrapped:
-            fig, ax = self._make_plot(x[:, 0], y[:, 0], cmap, dpi, color_by,
-                                      cbar_rng, cbar_label)
+            fig, ax = self._make_plot(
+                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label)
         else:
             fig, ax = self._make_bootstrap_plot(
                 x, y, cmap, dpi, color_by, cbar_rng,
@@ -97,6 +97,7 @@ class PRGPlotter(RPFPlotter):
         imb = self.rpf_dict["imbalance"]
         imb = imb[0] if type(
             imb) == np.ndarray and not bootstrapped else np.mean(imb)
+
         # Compute the ratio of class sizes
         class_ratio = 1 / (imb + 1e-9) - 1
 
@@ -110,21 +111,23 @@ class PRGPlotter(RPFPlotter):
             s="%sAUPRG = %.3f" % ("Mean " if bootstrapped else "", auc),
             ha="left",
             va="center",
-            bbox=dict(facecolor="gray",
-                      alpha=0.1,
-                      boxstyle="round"))
+            bbox=dict(
+                facecolor="gray",
+                alpha=0.1,
+                boxstyle="round"))
 
         # Add class imbalance to plot
         ax.text(
             x=0.06,
             y=0.07,
             s="%sClass Imb. = %.1f : 1" % (
-            "Mean " if bootstrapped else "", class_ratio),
+                "Mean " if bootstrapped else "", class_ratio),
             ha="left",
             va="center",
-            bbox=dict(facecolor="gray",
-                      alpha=0.1,
-                      boxstyle="round"))
+            bbox=dict(
+                facecolor="gray",
+                alpha=0.1,
+                boxstyle="round"))
 
         # Plot 95% confidence ellipse
         if op_value is not None:
@@ -145,7 +148,5 @@ class PRGPlotter(RPFPlotter):
 
         else:
             # Display and close plot
-            display(fig)
-            plt.gcf().clear()
+            plt.show()
             plt.close()
-            return

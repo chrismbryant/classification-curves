@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional, Union, List, Dict
+from typing import Optional, List, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,6 @@ from clscurves.plotter.pr import PRPlotter
 from clscurves.plotter.prg import PRGPlotter
 from clscurves.plotter.rf import RFPlotter
 from clscurves.plotter.roc import ROCPlotter
-from clscurves.sampler import SimpleSampler
 
 
 class RPFGenerator(
@@ -23,106 +22,20 @@ class RPFGenerator(
         CostPlotter,
         DistPlotter,
         RPFDictKeys):
-    """
+    """A class to generate RPF metrics.
+
     A class for computing Precision/Recall/Fraction metrics across a binary
     classification algorithm's full range of discrimination thresholds, and
-    plotting those metrics as ROC (Receiver Operating Charactic), PR (Precision
-    & Recall), or RF (Recall & Fraction) plots. The input data format for this
-    class is a PySpark DataFrame with at least a column of labels and a column
-    of scores (with an optional additional column of label weights).
-
-    PARAMETERS
-    ----------
-      predictions_df -- input DataFrame which must contain a column of labels
-        (integer column of 1s and 0s) and a column of scores (either a dense
-        vector column with two elements [prob_0, prob_1] or a real-valued
-        column of scores).
-      N -- number of threshold values (default: 500).
-      max_num_examples -- max number of rows to sample to prevent
-        numpy memory limits from being exceeded (default: 100000).
-      label_column -- name of the column containing the example labels,
-        which must all be either 0 or 1 (default: "label").
-      score_column -- name of the column containing the example scores
-        which rank model predictions. Even though binary classification
-        models typically output probabilities, these scores need not be
-        bounded by 0 and 1; they can be any real value. This column can be
-        either a real value numeric type or a 2-element vector of probabilities,
-        with the first element being the probability that the example is of
-        class 0 and the second element that the example is of class 1.
-        (default: "probability").
-      weight_column -- [Optional] name of the column containing label
-        weights associated with each example. These weights are useful
-        when the cost of classifying an example incorrectly varies from
-        example to example; see fraud, for instance: getting high dollar
-        value cases wrong is more costly than getting low dollar value
-        cases wrong, so a good measure of recall is, "How much money
-        did we catch", not "How many cases did we catch". If no column
-        name is specified, all weights will be set to 1. (default: None)
-      score_is_probability -- specifies whether the values in the score
-        column are bounded by 0 and 1. This controls how the threshold
-        range is determined. If true, the threshold range will sweep from
-        0 to 1. If false, it will sweep from the minimum to maximum
-        score value (default: True).
-      num_bootstrap_samples -- Number of bootstrap samples to generate
-        from the original data when computing performance metrics
-        (default: 0).
-      reverse_thresh -- boolean indicating whether the score threshold
-        should be treated as a lower bound on "positive" predictions
-        (as is standard) or instead as an upper bound. If `True`, the
-        threshold behavior will be reversed from standard so that any
-        prediction falling BELOW a score threshold will be marked as
-        positive, with all those falling above the threshold marked as
-        negative (default: False).
-      imbalance_multiplier -- positive value to artifically increase the
-        negative class example count by a multiplicative weighting factor.
-        Use this if you're generating metrics for a data distribution with a
-        class imbalance that doesn't represent the true distribution in the
-        wild. For example, if you trained on a 1:1 artifically balanced data
-        set, but you have a 10:1 class imbalance in the wild (i.e. 10 negative
-        examples for every 1 positive example), set the imbalance_multiplier
-        value to 10 (default: 1).
-      null_prob_column -- [Optional] column containing calibrated label
-        probabilities to use as the sampling distribution for imputing null label
-        values. We provide this argument so that you can evaluate a possibly-
-        uncalibrated model score (specified by the `score_column` argument) on
-        a different provided calibrated label distribution. If this argument is
-        None, then the `score_column` will be used as the estimated label
-        distribution when necessary (default: None).
-
-      null_fill_methods: [Optional] list of methods to use when filling in null
-        label values. Possible values:
-          "0" - fill with 0
-          "1" - fill with 1
-          "imb" - fill randomly according to the class imbalance of labeled examples
-          "prob" - fill randomly according to the `score_column` probability
-            distribution or the `null_prob_column` probability distribution, if
-            provided.
-        If a list of methods is provided, once the default RPF dictionary is computed
-        without imputing any null labels, then a new RPF dict will be computed for
-        each method and stored in an rpf_dict_imputed dictionary object. If not, only
-        the default RPF dictionary will be computed (default: None).
-      seed -- random seed for sample (default: 1).
-
-    SAMPLE CODE
-    -----------
-      >>> rpf = RPFGenerator(
-            predictions_df,
-            label_column = "label",
-            score_column = "score",
-            weight_column = "weight",
-            score_is_probability = False,
-            reverse_thresh = False,
-            num_bootstrap_samples = 20)
-
-      >>> rpf.plot_pr(bootstrapped = True)
-      >>> rpf.plot_roc()
-
+    plotting those metrics as ROC (Receiver Operating Characteristic), PR
+    (Precision & Recall), or RF (Recall & Fraction) plots. The input data
+    format for this class is a PySpark DataFrame with at least a column of
+    labels and a column of scores (with an optional additional column of label
+    weights).
     """
-
     def __init__(
             self,
-            predictions_df: Optional[Union[DataFrame, pd.DataFrame]] = None,
-            N: int = 500,
+            predictions_df: Optional[pd.DataFrame] = None,
+            n_thresh: int = 500,
             max_num_examples: int = 100000,
             label_column: str = "label",
             score_column: str = "probability",
@@ -134,9 +47,106 @@ class RPFGenerator(
             null_prob_column: Optional[str] = None,
             null_fill_methods: Optional[List[str]] = None,
             seed: int = 1):
+        """
+        PARAMETERS
+        ----------
+        predictions_df
+            Input DataFrame which must contain a column of labels (integer
+            column of 1s and 0s) and a column of scores (either a dense vector
+            column with two elements [prob_0, prob_1] or a real-valued column
+            of scores).
+        n_thresh
+            number of threshold values.
+        max_num_examples
+            Max number of rows to sample to prevent numpy memory limits from
+            being exceeded.
+        label_column
+            Name of the column containing the example labels, which must all be
+            either 0 or 1.
+        score_column
+            Name of the column containing the example scores which rank model
+            predictions. Even though binary classification models typically
+            output probabilities, these scores need not be bounded by 0 and 1;
+            they can be any real value. This column can be either a real value
+            numeric type or a 2-element vector of probabilities, with the first
+            element being the probability that the example is of class 0 and
+            the second element that the example is of class 1.
+        weight_column
+            Name of the column containing label weights associated with each
+            example. These weights are useful when the cost of classifying an
+            example incorrectly varies from example to example; see fraud, for
+            instance: getting high dollar value cases wrong is more costly than
+            getting low dollar value cases wrong, so a good measure of recall
+            is, "How much money did we catch", not "How many cases did we
+            catch". If no column name is specified, all weights will be set to
+            1.
+        score_is_probability
+            Specifies whether the values in the score column are bounded by 0
+            and 1. This controls how the threshold range is determined. If
+            true, the threshold range will sweep from 0 to 1. If false, it will
+            sweep from the minimum to maximum score value.
+        num_bootstrap_samples
+            Number of bootstrap samples to generate from the original data when
+            computing performance metrics.
+        reverse_thresh
+            Boolean indicating whether the score threshold should be treated as
+            a lower bound on "positive" predictions (as is standard) or instead
+            as an upper bound. If `True`, the threshold behavior will be
+            reversed from standard so that any prediction falling BELOW a score
+            threshold will be marked as positive, with all those falling above
+            the threshold marked as negative.
+        imbalance_multiplier
+            Positive value to artifically increase the negative class example
+            count by a multiplicative weighting factor. Use this if you're
+            generating metrics for a data distribution with a class imbalance
+            that doesn't represent the true distribution in the wild. For
+            example, if you trained on a 1:1 artifically balanced data set, but
+            you have a 10:1 class imbalance in the wild (i.e. 10 negative
+            examples for every 1 positive example), set the
+            ``imbalance_multiplier`` value to 10.
+        null_prob_column
+            Column containing calibrated label probabilities to use as the
+            sampling distribution for imputing null label values. We provide
+            this argument so that you can evaluate a possibly-uncalibrated
+            model score (specified by the `score_column` argument) on a
+            different provided calibrated label distribution. If this argument
+            is `None`, then the ``score_column`` will be used as the estimated
+            label distribution when necessary.
+        null_fill_methods
+            List of methods to use when filling in null label values. Possible
+            values:
+                * "0" - fill with 0
+                * "1" - fill with 1
+                * "imb" - fill randomly according to the class imbalance of
+                    labeled examples
+                * "prob" - fill randomly according to the ``score_column``
+                    probability distribution or the ``null_prob_column``
+                    probability distribution, if provided.
+            If a list of methods is provided, once the default RPF dictionary
+            is computed without imputing any null labels, then a new RPF dict
+            will be computed for each method and stored in an
+            ``rpf_dict_imputed`` dictionary object. If not, only the default
+            RPF dictionary will be computed.
+        seed
+            Random seed for sample.
+
+        Example
+        -------
+        >>> rpf = RPFGenerator(
+            predictions_df,
+            label_column = "label",
+            score_column = "score",
+            weight_column = "weight",
+            score_is_probability = False,
+            reverse_thresh = False,
+            num_bootstrap_samples = 20)
+
+        >>> rpf.plot_pr(bootstrapped = True)
+        >>> rpf.plot_roc()
+        """
 
         # Assign instance attributes
-        self.N = N
+        self.N = n_thresh
         self.max_num_examples = max_num_examples
         self.label_column = label_column
         self.score_column = score_column
@@ -152,25 +162,26 @@ class RPFGenerator(
         self.rpf_dict = {}
         self.rpf_dict_imputed = {}
 
+        # Set seed
+        np.random.seed(self.seed)
+
         assert self.null_fill_methods is None or all([
             m in ["0", "1", "imb", "prob"] for m in self.null_fill_methods
         ]), "Each null_fill_method must be in ['0', '1', 'imb', 'prob']."
 
         if predictions_df is not None:
 
-            # Format label column in DataFrame, then collect data into arrays,
-            # assign thresholds, and bootstrap if necessary
-            if type(predictions_df) == DataFrame:
-                self.predictions_df = predictions_df \
-                    .withColumn(label_column, F.col(label_column).cast("int"))
-                syw = self._collect_syw()
-            else:
-                self.predictions_df = predictions_df
-                syw = self._collect_syw_pd()
+            # Collect data into arrays
+            self.predictions_df = predictions_df
+            syw = self._collect_syw()
 
+            # Assign thresholds
             self.thresholds = self._get_thresholds(syw["s"])
 
+            # Bootstrap if necessary
             syw = self._make_bootstraps(syw)
+
+            # Extract values
             self.scores = syw["s"]
             self.labels = syw["y"]
             self.weights = syw["w"]
@@ -187,11 +198,11 @@ class RPFGenerator(
             if self.null_fill_methods is not None:
                 self.compute_rpf_with_unk()
 
-    def _collect_syw_pd(self) -> Dict[str, np.array]:
+    def _collect_syw(self) -> Dict[str, np.array]:
         """
-        Collect scores (s), labels (y), and weights (w) from a Pandas prediction
-        DataFrame into 3 separate NumPy arrays. Convert all None labels to NaN
-        after collecting.
+        Collect scores (s), labels (y), and weights (w) from a Pandas
+        prediction DataFrame into 3 separate NumPy arrays. Convert all None
+        labels to NaN after collecting.
         """
         syw_cols = {
             "s": self.score_column,
@@ -208,62 +219,25 @@ class RPFGenerator(
                 np.float32)
         return syw
 
-    def _collect_syw(self) -> Dict[str, np.array]:
+    def _make_bootstraps(
+            self,
+            arrays: Dict[str, np.array]) -> Dict[str, np.array]:
         """
-        Collect scores (s), labels (y), and weights (w) from a PySpark
-        prediction DataFrame into 3 separate NumPy arrays. Convert all None labels
-        to NaN after collecting.
+        Construct matched bootstrap samples for all the arrays in an input
+        dictionary if the number of bootstrap samples is set to a value greater
+        than 0, then concatenate those bootstraps to the original arrays.
+        Otherwise, reshape input arrays so that they are 2D (vertical vectors).
         """
-
-        # UDF to convert SparkML vector to standard array
-        @udf(ArrayType(DoubleType()))
-        def vec_to_array(vec):
-            return [float(x) for x in vec.toArray()]
-
-        # Determine whether the score column is a SparkML vector
-        dtype = dict(self.predictions_df.dtypes)[self.score_column]
-        vector_prob = dtype == "vector"
-
-        cols = [
-            self.score_column,
-            self.label_column,
-            self.weight_column
-        ]
-
-        if self.null_prob_column is not None:
-            cols += self.null_prob_column
-
-        # Convert Spark DF into Pandas DF
-        print("Collecting data from DF into NumPy arrays...")
-        self.predictions_df = SimpleSampler() \
-            .get_sample(self.predictions_df, self.max_num_examples, self.seed) \
-            .withColumn(
-            self.score_column,
-            vec_to_array(self.score_column)[1] if vector_prob else F.col(
-                self.score_column)) \
-            .select(*cols) \
-            .toPandas()
-
-        return self._collect_syw_pd()
-
-    def _make_bootstraps(self, arrays: Dict[str, np.array]) -> Dict[
-        str, np.array]:
-        """
-        Construct matched bootstrap samples for all the arrays in an input dictionary
-        if the number of bootstrap samples is set to a value greater than 0, then
-        concatenate those bootstraps to the original arrays. Otherwise, reshape input
-        arrays so that they are 2D (vertical vectors).
-        """
-
         tot = len(arrays[list(arrays.keys())[0]])
         if self.num_bootstrap_samples > 0:
             print(
-                "Creating %d bootstrap samples..." % self.num_bootstrap_samples)
-            ix = np.random.choice(np.arange(tot),
-                                  (tot, self.num_bootstrap_samples))
-            augment = lambda arr: np.concatenate(
-                [arr.reshape(tot, 1), arr[ix]], axis=1)
-            arrays = {key: augment(arr) for key, arr in arrays.items()}
+                f"Creating {self.num_bootstrap_samples} bootstrap samples...")
+            ix = np.random.choice(
+                np.arange(tot), (tot, self.num_bootstrap_samples))
+            arrays = {
+                key: np.concatenate([arr.reshape(tot, 1), arr[ix]], axis=1)
+                for key, arr in arrays.items()
+            }
         else:
             arrays = {key: arr.reshape(tot, 1) for key, arr in arrays.items()}
 
@@ -271,20 +245,20 @@ class RPFGenerator(
 
     def _get_thresholds(self, scores: np.array) -> np.array:
         """
-        Given an array of scores, create an ordered list of threshold values which includes:
-          1. The minimum input score,
-          2. The maximum input score,
-          3. A set of scores equally spaced between the min and max score value, and
-          4. A set of scores equally spaced throughout the score quantile distribution.
+        Given an array of scores, create an ordered list of threshold values
+        which includes:
+            1. The minimum input score,
+            2. The maximum input score,
+            3. A set of scores equally spaced between the min and max score
+                value, and
+            4. A set of scores equally spaced throughout the score quantile
+                distribution.
         """
         num_examples = len(scores)
-        score_bounds = [0, 1] if self.score_is_probability else [min(scores),
-                                                                 max(scores)]
+        score_bounds = [0, 1] if self.score_is_probability else [min(scores), max(scores)] # noqa
         score_range = score_bounds[1] - score_bounds[0]
-        thresh_equal = score_bounds[0] + score_range * np.arange(
-            self.N) / self.N
-        indices = np.ndarray.astype(np.arange(self.N) * num_examples / self.N,
-                                    int)
+        thresh_equal = score_bounds[0] + score_range * np.arange(self.N) / self.N # noqa
+        indices = np.ndarray.astype(np.arange(self.N) * num_examples / self.N, int) # noqa
         thresholds = np.sort(np.unique(np.concatenate([
             np.array([score_bounds[0]]),
             np.sort(scores)[indices],
@@ -303,10 +277,12 @@ class RPFGenerator(
         Compute number of positive-, negative-, and un-labeled examples,
         and the total weighted amount covered by each label type.
         """
+
         # Print imbalance multiplier warning
         if self.imbalance_multiplier != 1:
             print(
-                f"Artificial imbalance multiplier: {self.imbalance_multiplier}")
+                f"Artificial imbalance multiplier: {self.imbalance_multiplier}"
+            )
 
         # Alias input parameters
         y = labels
@@ -336,9 +312,9 @@ class RPFGenerator(
             thresholds: np.array) -> Dict[str, np.array]:
         """
         Compute unweighted and weighted TP and FP arrays, given input arrays of
-        model scores, data labels, data weights, and threshold values. Also compute
-        UP ("unknown positive") arrays if there are any records which have an unknown
-        label (i.e. label = None).
+        model scores, data labels, data weights, and threshold values. Also
+        compute UP ("unknown positive") arrays if there are any records which
+        have an unknown label (i.e. label = None).
         """
         print("Computing confusion matrices...")
 
@@ -359,12 +335,9 @@ class RPFGenerator(
         for t in thresholds:
 
             # Note: predictions shape = (num_examples, num_bootstrap_samples)
-            predictions = ((scores <= t) if self.reverse_thresh else (
-                    scores >= t)).astype(int)
-            tp_value = np.sum(np.logical_and(predictions == 1, labels == 1),
-                              axis=0).T
-            fp_value = np.sum(np.logical_and(predictions == 1, labels == 0),
-                              axis=0).T
+            predictions = ((scores <= t) if self.reverse_thresh else (scores >= t)).astype(int) # noqa
+            tp_value = np.sum(np.logical_and(predictions == 1, labels == 1), axis=0).T # noqa
+            fp_value = np.sum(np.logical_and(predictions == 1, labels == 0), axis=0).T # noqa
             tp_w_value = np.sum(
                 weights * np.logical_and(predictions == 1, labels == 1),
                 axis=0).T
@@ -379,12 +352,19 @@ class RPFGenerator(
 
             # Account for unknown labels
             if self.labels_contain_null:
+
                 up_value = np.sum(
-                    np.logical_and(predictions == 1, np.isnan(labels)),
+                    np.logical_and(
+                        predictions == 1,
+                        np.isnan(labels)),
                     axis=0).T
-                up_w_value = np.sum(weights * np.logical_and(predictions == 1,
-                                                             np.isnan(labels)),
-                                    axis=0).T
+
+                up_w_value = np.sum(
+                    weights * np.logical_and(
+                        predictions == 1,
+                        np.isnan(labels)),
+                    axis=0).T
+
                 up.append(up_value)
                 up_w.append(up_w_value)
 
@@ -410,6 +390,7 @@ class RPFGenerator(
         """
         Compute complementary TN and FN metrics for given TP and FP metrics.
         """
+
         # Combine input dicts into single dict
         d = {**tp_fp_dict, **pos_neg_dict}
 
@@ -440,14 +421,13 @@ class RPFGenerator(
         threshold values.
         """
         pos_neg_dict = self._compute_pos_neg_dict(labels, weights)
-        tp_fp_dict = self._compute_tp_fp_dict(scores, labels, weights,
-                                              thresholds)
+        tp_fp_dict = self._compute_tp_fp_dict(scores, labels, weights, thresholds) # noqa
         tn_fn_dict = self._compute_tn_fn_dict(tp_fp_dict, pos_neg_dict)
         confusion_dict = {**pos_neg_dict, **tp_fp_dict, **tn_fn_dict}
         return confusion_dict
 
+    @staticmethod
     def _compute_metrics_dict(
-            self,
             confusion_dict: Dict[str, np.array]) -> Dict[str, np.array]:
         """
         Compute performance metrics from TP and FP values, making sure to
@@ -463,9 +443,9 @@ class RPFGenerator(
         recall = d["tp"] / d["pos"]
         precision = np.nan_to_num(d["tp"] / (d["tp"] + d["fp"]))
 
-        def compute_gain(metric: np.array, imb: float):
-            return np.clip((metric - imb) / ((1 - imb) * metric), a_min=0,
-                           a_max=1)
+        def compute_gain(metric: np.array, imbal: float):
+            return np.clip(
+                (metric - imbal) / ((1 - imbal) * metric), a_min=0, a_max=1)
 
         recall_gain = compute_gain(recall, imb)
         precision_gain = compute_gain(precision, imb)
@@ -483,13 +463,14 @@ class RPFGenerator(
         }
         return metrics_dict
 
+    @staticmethod
     def _compute_area_metrics_dict(
-            self,
             metrics_dict: Dict[str, np.array]) -> Dict[str, np.array]:
         """
         Compute single-number area-under-the-curve metrics for all the computed
         performance curves.
         """
+
         # Compute area under ROC, PR, and RF curves
         print("Computing area metrics...")
         d = metrics_dict
@@ -509,19 +490,18 @@ class RPFGenerator(
         """
         Compute new RPF dicts after filling in unknown labels with 0s or 1s
         via a variety of methods:
-
-          "0" -- fill unknown labels with 0
-          "1" -- fill unknown labels with 1
-          "imb" -- fill unknown labels with 0 or 1 probabilistically according
-              to the class imbalance of the known labels.
-          "prob" -- fill unknown labels with 0 or 1 probabilistically according
-              to the probability-calibrated model score.
+            * "0" -- fill unknown labels with 0
+            * "1" -- fill unknown labels with 1
+            * "imb" -- fill unknown labels with 0 or 1 probabilistically
+                according to the class imbalance of the known labels.
+            * "prob" -- fill unknown labels with 0 or 1 probabilistically
+                according to the probability-calibrated model score.
         """
         scores = self.scores
         labels = self.labels
         weights = self.weights
         imbalance = self.rpf_dict["imbalance"]
-        null_probs = self.null_probabilities if self.null_prob_column else self.scores
+        null_probs = self.null_probabilities if self.null_prob_column else self.scores # noqa
 
         # Initialize empty dicts
         self.rpf_dict_imputed = {}
@@ -530,11 +510,10 @@ class RPFGenerator(
         # Create masked labels array
         masked_labels = np.ma.array(labels, mask=np.isnan(labels))
 
-        # Probabilistically generate labels according to probability values or class imb.
-        labels_from_prob = (np.random.rand(*labels.shape) < null_probs).astype(
-            int)
-        labels_from_imb = (np.random.rand(*labels.shape) < imbalance).astype(
-            int)
+        # Probabilistically generate labels according to probability values or
+        # class imb.
+        labels_from_prob = (np.random.rand(*labels.shape) < null_probs).astype(int) # noqa
+        labels_from_imb = (np.random.rand(*labels.shape) < imbalance).astype(int) # noqa
 
         # Fill null labels according to fill method
         labels_filled["0"] = masked_labels.filled(0)
@@ -543,11 +522,11 @@ class RPFGenerator(
         labels_filled["prob"] = masked_labels.filled(labels_from_prob)
 
         # Helper function to compute RPF metrics for each null fill method
-        def compute_filled_rpf(method):
-            print(f"null ==> {method}")
-            self.rpf_dict_imputed[method] = self.compute_rpf(
+        def compute_filled_rpf(fill_method):
+            print(f"null ==> {fill_method}")
+            self.rpf_dict_imputed[fill_method] = self.compute_rpf(
                 scores,
-                labels_filled[method],
+                labels_filled[fill_method],
                 weights,
                 return_dict=True)
             print("")
@@ -562,62 +541,66 @@ class RPFGenerator(
             labels: np.array,
             weights: np.array,
             return_dict: bool = False) -> Optional[Dict[str, Any]]:
-        """
-        Compute the RPF values.
+        """Compute the RPF values.
 
-        PARAMETERS
+        Parameters
         ----------
-          scores -- numpy array of score values
-          labels -- numpy array of label values
-          weights -- numpy array of weight values
-          return_dict -- if True, will return the resulting rpf_dict, otherwise
-            will set result to self.rpf_dict (default: False).
+        scores
+            Numpy array of score values.
+        labels
+            Numpy array of label values.
+        weights
+            Numpy array of weight values.
+        return_dict
+            If True, will return the resulting rpf_dict, otherwise will set
+            result to ``self.rpf_dict``.
 
-        RETURNS
+        Returns
         -------
-          rpf -- dictionary of RPF-related values:
-            {
-              "tp": numpy array of true positive values,
-              "fp": numpy array of false positive values,
-              "fn": numpy array of false negative values,
-              "tn": numpy array of true negative values,
-              "tp_w": numpy array of weighted true positive values,
-              "fp_w": numpy array of weighted false positive values,
-              "fn_w": numpy array of weighted false negative values,
-              "tn_w": numpy array of weighted true negative values,
-              "up": [optional] numpy array of unlabeled predicted positive values,
-              "un": [optional] numpy array of unlabeled predicted negative values,
-              "up_w": [optional] numpy array of unlabeled weighted pred. pos. values,
-              "un_w": [optional] numpy array of unlabeled weighted pred. neg. values,
-              "precision": numpy array of precision values,
-              "tpr": numpy array of recall values,
-              "fpr": numpy array of false-positive rate values,
-              "tpr_w": numpy array of weighted recall values,
-              "fpr_w": numpy array of weighted false-positive rate values,
-              "precision_gain": numpy array of "precision gain" values,
-              "recall_gain": numpy array of "recall gain" values,
-              "frac": numpy array of flag-rate values,
-              "frac_w": numpy array of weighted flag-rate values,
-              "imbalance": class imbalance (positive class size / total data size),
-              "roc_auc": area under the ROC curve,
-              "pr_auc": area under the PR curve,
-              "rf_auc": area under the RF curve,
-              "roc_auc_w": area under the weighted ROC curve,
-              "pr_auc_w": area under the weighted PR curve,
-              "rf_auc_w": area under the weighted RF curve,
-              "thresh": numpy array of score decision threshold values,
-              "pos": number of positive examples,
-              "neg": number of negative examples,
-              "unk": number of unlabeled examples with unknown label,
-              "pos_w": weighted sum of positive examples,
-              "neg_w": weighted sum of negative examples,
-              "unk_w": weighted sum of examples with unknown label,
-              "num_bootstrap_samples": number of bootstrap samples
-            }.
+        rpf
+            Dictionary of RPF-related values: {
+                "tp": numpy array of true positive values,
+                "fp": numpy array of false positive values,
+                "fn": numpy array of false negative values,
+                "tn": numpy array of true negative values,
+                "tp_w": numpy array of weighted true positive values,
+                "fp_w": numpy array of weighted false positive values,
+                "fn_w": numpy array of weighted false negative values,
+                "tn_w": numpy array of weighted true negative values,
+                "up": [optional] numpy array of unlabeled predicted positive values, # noqa
+                "un": [optional] numpy array of unlabeled predicted negative values,
+                "up_w": [optional] numpy array of unlabeled weighted pred. pos. values,
+                "un_w": [optional] numpy array of unlabeled weighted pred. neg. values,
+                "precision": numpy array of precision values,
+                "tpr": numpy array of recall values,
+                "fpr": numpy array of false-positive rate values,
+                "tpr_w": numpy array of weighted recall values,
+                "fpr_w": numpy array of weighted false-positive rate values,
+                "precision_gain": numpy array of "precision gain" values,
+                "recall_gain": numpy array of "recall gain" values,
+                "frac": numpy array of flag-rate values,
+                "frac_w": numpy array of weighted flag-rate values,
+                "imbalance": class imbalance (positive class size / total data size),
+                "roc_auc": area under the ROC curve,
+                "pr_auc": area under the PR curve,
+                "rf_auc": area under the RF curve,
+                "roc_auc_w": area under the weighted ROC curve,
+                "pr_auc_w": area under the weighted PR curve,
+                "rf_auc_w": area under the weighted RF curve,
+                "thresh": numpy array of score decision threshold values,
+                "pos": number of positive examples,
+                "neg": number of negative examples,
+                "unk": number of unlabeled examples with unknown label,
+                "pos_w": weighted sum of positive examples,
+                "neg_w": weighted sum of negative examples,
+                "unk_w": weighted sum of examples with unknown label,
+                "num_bootstrap_samples": number of bootstrap samples
+            }
         """
+
         # Compute all metrics
-        confusion_dict = self._compute_confusion_dict(scores, labels, weights,
-                                                      self.thresholds)
+        confusion_dict = self._compute_confusion_dict(
+            scores, labels, weights, self.thresholds)
         metrics_dict = self._compute_metrics_dict(confusion_dict)
         area_metrics_dict = self._compute_area_metrics_dict(metrics_dict)
 
