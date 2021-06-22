@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "clscurves"
-version = "0.0.1"
+version = "0.0.2"
 description = "Compute and plot bootstrapped performance curves for classification problems."
 authors = ["Christopher Bryant <cbryant@berkeley.edu>"]
 maintainers = ["Christopher Bryant <cbryant@berkeley.edu>"]
