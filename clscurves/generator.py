@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.integrate import trapz
 
-from clscurves.config import RPFDictKeys
+from clscurves.config import MetricsAliases
 from clscurves.plotter.cost import CostPlotter
 from clscurves.plotter.dist import DistPlotter
 from clscurves.plotter.pr import PRPlotter
@@ -14,15 +14,15 @@ from clscurves.plotter.rf import RFPlotter
 from clscurves.plotter.roc import ROCPlotter
 
 
-class RPFGenerator(
+class MetricsGenerator(
         ROCPlotter,
         PRPlotter,
         PRGPlotter,
         RFPlotter,
         CostPlotter,
         DistPlotter,
-        RPFDictKeys):
-    """A class to generate RPF metrics.
+        MetricsAliases):
+    """A class to generate classification curve metrics.
 
     A class for computing Precision/Recall/Fraction metrics across a binary
     classification algorithm's full range of discrimination thresholds, and
@@ -47,7 +47,8 @@ class RPFGenerator(
             null_prob_column: Optional[str] = None,
             null_fill_methods: Optional[List[str]] = None,
             seed: int = 1):
-        """
+        """Instantiating this class computes all the metrics.
+
         PARAMETERS
         ----------
         predictions_df
@@ -122,17 +123,17 @@ class RPFGenerator(
                 * "prob" - fill randomly according to the ``score_column``
                     probability distribution or the ``null_prob_column``
                     probability distribution, if provided.
-            If a list of methods is provided, once the default RPF dictionary
-            is computed without imputing any null labels, then a new RPF dict
-            will be computed for each method and stored in an
-            ``rpf_dict_imputed`` dictionary object. If not, only the default
-            RPF dictionary will be computed.
+            If a list of methods is provided, once the default metrics
+            dictionary is computed without imputing any null labels, then a new
+            metrics dict will be computed for each method and stored in an
+            ``metrics_dict_imputed`` dictionary object. If not, only the
+            default metrics dictionary will be computed.
         seed
-            Random seed for sample.
+            Random seed for bootstrapping.
 
         Examples
         --------
-        >>> rpf = RPFGenerator(
+        >>> mg = MetricsGenerator(
             predictions_df,
             label_column = "label",
             score_column = "score",
@@ -141,8 +142,8 @@ class RPFGenerator(
             reverse_thresh = False,
             num_bootstrap_samples = 20)
 
-        >>> rpf.plot_pr(bootstrapped = True)
-        >>> rpf.plot_roc()
+        >>> mg.plot_pr(bootstrapped = True)
+        >>> mg.plot_roc()
         """
 
         # Assign instance attributes
@@ -159,8 +160,8 @@ class RPFGenerator(
         self.null_fill_methods = null_fill_methods
         self.null_probabilities = None
         self.seed = seed
-        self.rpf_dict = {}
-        self.rpf_dict_imputed = {}
+        self.metrics_dict = {}
+        self.metrics_dict_imputed = {}
 
         # Set seed
         np.random.seed(self.seed)
@@ -188,15 +189,15 @@ class RPFGenerator(
             if "p" in syw:
                 self.null_probabilities = syw["p"]
 
-            # Compute standard RPF metrics
-            self.compute_rpf(
+            # Compute standard classification curve metrics
+            self.compute_metrics(
                 self.scores,
                 self.labels,
                 self.weights)
 
-            # Compute imputed-null RPF metrics
+            # Compute imputed-null classification curve metrics
             if self.null_fill_methods is not None:
-                self.compute_rpf_with_unk()
+                self.compute_metrics_with_unk()
 
     def _collect_syw(self) -> Dict[str, np.array]:
         """
@@ -204,19 +205,27 @@ class RPFGenerator(
         prediction DataFrame into 3 separate NumPy arrays. Convert all None
         labels to NaN after collecting.
         """
-        syw_cols = {
-            "s": self.score_column,
-            "y": self.label_column,
-            "w": self.weight_column
-        }
+        syw = dict()
 
+        syw["s"] = self.predictions_df[self.score_column] \
+            .to_numpy().astype(np.float32)
+
+        syw["y"] = self.predictions_df[self.label_column] \
+            .to_numpy().astype(np.float32)
+
+        # Set weight column to 1 if not specified
+        if self.weight_column is not None:
+            syw["w"] = self.predictions_df[self.weight_column] \
+                .to_numpy().astype(np.float32)
+        else:
+            syw["w"] = self.predictions_df[self.score_column] \
+                .to_numpy().astype(np.float32) * 0 + 1
+
+        # Only set p if the null prob column is specified
         if self.null_prob_column is not None:
-            syw_cols.update(p=self.null_prob_column)
+            syw["p"] = self.predictions_df[self.null_prob_column] \
+                .to_numpy().astype(np.float32)
 
-        syw = {}
-        for key, column in syw_cols.items():
-            syw[key] = self.predictions_df[column].to_numpy().astype(
-                np.float32)
         return syw
 
     def _make_bootstraps(
@@ -486,9 +495,9 @@ class RPFGenerator(
         }
         return area_metrics_dict
 
-    def compute_rpf_with_unk(self):
+    def compute_metrics_with_unk(self):
         """
-        Compute new RPF dicts after filling in unknown labels with 0s or 1s
+        Compute new metrics dicts after filling in unknown labels with 0s or 1s
         via a variety of methods:
         * "0" -- fill unknown labels with 0
         * "1" -- fill unknown labels with 1
@@ -500,11 +509,11 @@ class RPFGenerator(
         scores = self.scores
         labels = self.labels
         weights = self.weights
-        imbalance = self.rpf_dict["imbalance"]
+        imbalance = self.metrics_dict["imbalance"]
         null_probs = self.null_probabilities if self.null_prob_column else self.scores # noqa
 
         # Initialize empty dicts
-        self.rpf_dict_imputed = {}
+        self.metrics_dict_imputed = {}
         labels_filled = {}
 
         # Create masked labels array
@@ -521,27 +530,27 @@ class RPFGenerator(
         labels_filled["imb"] = masked_labels.filled(labels_from_imb)
         labels_filled["prob"] = masked_labels.filled(labels_from_prob)
 
-        # Helper function to compute RPF metrics for each null fill method
-        def compute_filled_rpf(fill_method):
+        # Helper function to compute metrics for each null fill method
+        def compute_filled_metrics(fill_method):
             print(f"null ==> {fill_method}")
-            self.rpf_dict_imputed[fill_method] = self.compute_rpf(
+            self.metrics_dict_imputed[fill_method] = self.compute_metrics(
                 scores,
                 labels_filled[fill_method],
                 weights,
                 return_dict=True)
             print("")
 
-        # Compute RPF metrics for each null fill method
+        # Compute metrics for each null fill method
         for method in self.null_fill_methods:
-            compute_filled_rpf(method)
+            compute_filled_metrics(method)
 
-    def compute_rpf(
+    def compute_metrics(
             self,
             scores: np.array,
             labels: np.array,
             weights: np.array,
             return_dict: bool = False) -> Optional[Dict[str, Any]]:
-        """Compute the RPF values.
+        """Compute the classification curve metrics values.
 
         Parameters
         ----------
@@ -552,13 +561,13 @@ class RPFGenerator(
         weights
             Numpy array of weight values.
         return_dict
-            If True, will return the resulting rpf_dict, otherwise will set
-            result to ``self.rpf_dict``.
+            If True, will return the resulting metrics_dict, otherwise will set
+            result to ``self.metrics_dict``.
 
         Returns
         -------
-        rpf
-            Dictionary of RPF-related values: {
+        metrics
+            Dictionary of classification curve metrics-related values: {
                 "tp": numpy array of true positive values,
                 "fp": numpy array of false positive values,
                 "fn": numpy array of false negative values,
@@ -604,8 +613,8 @@ class RPFGenerator(
         metrics_dict = self._compute_metrics_dict(confusion_dict)
         area_metrics_dict = self._compute_area_metrics_dict(metrics_dict)
 
-        # Populate dictionary of RPF metrics
-        rpf_dict = {
+        # Populate dictionary of classification curve metrics
+        metrics_dict = {
             **confusion_dict,
             **metrics_dict,
             **area_metrics_dict,
@@ -614,15 +623,16 @@ class RPFGenerator(
         }
 
         # Extract single number values from any 1-element arrays
-        for k, v in rpf_dict.items():
+        for k, v in metrics_dict.items():
             if type(v) == np.ndarray:
                 if v.size == 1:
-                    rpf_dict[k] = v[0]
+                    metrics_dict[k] = v[0]
 
         print("Complete.")
 
-        # Either return the computed RPF dict or set it to self.rpf_dict
+        # Either return the computed metrics dict or set it to
+        # self.metrics_dict
         if return_dict:
-            return rpf_dict
+            return metrics_dict
         else:
-            self.rpf_dict = rpf_dict
+            self.metrics_dict = metrics_dict

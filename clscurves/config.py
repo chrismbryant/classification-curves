@@ -1,8 +1,9 @@
-class RPFDictKeys:
-    """RPF key aliases.
+class MetricsAliases:
+    """Metrics key aliases.
 
-    A class to provide human-readable labels for each key in an ``rpf_dict``
-    that we might want to color an RPF plot by.
+    A class to provide human-readable labels for each key in a
+    ``metrics_dict`` that we might want use when coloring a classification
+    curve plot.
     """
     cbar_dict = {
         "tp": "True Positive (TP) Count",

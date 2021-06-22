@@ -4,19 +4,22 @@ import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 
-from clscurves.config import RPFDictKeys
+from clscurves.config import MetricsAliases
 from clscurves.covariance import CovarianceEllipseGenerator
 
 
-class RPFPlotter(RPFDictKeys):
-    """A helper class to provide methods shared by each RPF plotter.
+class MetricsPlotter(MetricsAliases):
+    """A helper class to provide methods shared by each metrics plotter.
 
-    These methods streamline the process of making a single RPF plot, making a
-    bootstrapped plot, and adding a confidence ellipse to a specified operating
-    point.
+    These methods streamline the process of making a single classification
+    curve metrics plot, making a bootstrapped plot, and adding a confidence
+    ellipse to a specified operating point.
     """
-    def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):
-        self.rpf_dict = rpf_dict
+    def __init__(
+            self,
+            metrics_dict: Dict[str, Any],
+            score_is_probability: bool):
+        self.metrics_dict = metrics_dict
         self.score_is_probability = score_is_probability
 
     def _add_op_ellipse(
@@ -26,25 +29,25 @@ class RPFPlotter(RPFDictKeys):
             y_key: str,
             ax: plt.axes,
             thresh_key: str = "thresh"):
-        """A helper function to add a confidence ellipse to an RPF plot given a
-        threshold operating value.
+        """A helper function to add a confidence ellipse to an metrics plot
+        given a threshold operating value.
 
         Parameters
         ----------
         op_value
             Threshold operating value.
         x_key
-            rpf_dict key used in plot x axis.
+            metrics_dict key used in plot x axis.
         y_key
-            rpf_dict key used in plot y axis.
+            metrics_dict key used in plot y axis.
         ax
             Matplotlib axis object.
         thresh_key
-            rpf_dict key used for coloring (default: "thresh").
+            metrics_dict key used for coloring (default: "thresh").
         """
 
         # Find all entries at or above the operating point threshold
-        data = self.rpf_dict[thresh_key] >= op_value
+        data = self.metrics_dict[thresh_key] >= op_value
         size = data.shape[0]
 
         # Find the index of the first entry at or above the operating threshold
@@ -52,12 +55,12 @@ class RPFPlotter(RPFDictKeys):
             np.cumsum(np.diff(data, axis=0), axis=0), axis=0)
 
         # Find number of points to plot
-        num_points = self.rpf_dict[y_key].shape[1]
+        num_points = self.metrics_dict[y_key].shape[1]
 
         # Get x-y coordinates for each bootstrapped operating point
         op_data = np.array([
-            self.rpf_dict[x_key][op_index, np.arange(num_points)],
-            self.rpf_dict[y_key][op_index, np.arange(num_points)]
+            self.metrics_dict[x_key][op_index, np.arange(num_points)],
+            self.metrics_dict[y_key][op_index, np.arange(num_points)]
         ])
 
         # Compute covariance ellipse and add to ax
@@ -86,7 +89,7 @@ class RPFPlotter(RPFDictKeys):
             fig: Optional[plt.figure] = None,
             ax: Optional[plt.axes] = None) -> Tuple[plt.figure, plt.axes]:
         """A helper function to create a base Matplotlib scatter plot figure
-        for RPF-related plotting.
+        for metrics-related plotting.
         """
 
         # Create figure
@@ -102,8 +105,8 @@ class RPFPlotter(RPFDictKeys):
             [vmin, vmax] = cbar_rng
         else:
             sip = self.score_is_probability or color_by == "frac"
-            vmin = 0.0 if sip else np.min(self.rpf_dict[color_by])
-            vmax = 1.0 if sip else np.max(self.rpf_dict[color_by])
+            vmin = 0.0 if sip else np.min(self.metrics_dict[color_by])
+            vmax = 1.0 if sip else np.max(self.metrics_dict[color_by])
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
@@ -119,7 +122,7 @@ class RPFPlotter(RPFDictKeys):
             x,
             y,
             s=100,
-            c=self.rpf_dict[color_by][:, 0],
+            c=self.metrics_dict[color_by][:, 0],
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
@@ -141,7 +144,8 @@ class RPFPlotter(RPFDictKeys):
             alpha: float,
             bootstrap_color: str) -> Tuple[plt.figure, plt.axes]:
         """A helper function to add faint bootstrapped reference curves to an
-        RPF plot to visualize the confidence we have in the main RPF curve.
+        metrics plot to visualize the confidence we have in the main metrics
+        curve.
         """
         x_main = x[:, 0]
         y_main = y[:, 0]
@@ -156,7 +160,7 @@ class RPFPlotter(RPFDictKeys):
         ax.set_ylim(0, 1)
 
         # Plot faint bootstrapped curves
-        for i in range(self.rpf_dict["num_bootstrap_samples"]):
+        for i in range(self.metrics_dict["num_bootstrap_samples"]):
             ax.plot(
                 x_boot[:, i],
                 y_boot[:, i],

@@ -1,15 +1,18 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any, Dict
 
 import numpy as np
 from matplotlib import pyplot as plt
 
-from clscurves.plotter.plotter import RPFPlotter
+from clscurves.plotter.plotter import MetricsPlotter
 
 
-class RFPlotter(RPFPlotter):
+class RFPlotter(MetricsPlotter):
 
-    def __init__(self, rpf_dict, score_is_probability):
-        super().__init__(rpf_dict, score_is_probability)
+    def __init__(
+            self,
+            metrics_dict: Dict[str, Any],
+            score_is_probability: bool):
+        super().__init__(metrics_dict, score_is_probability)
 
     def plot_rf(
             self,
@@ -48,7 +51,7 @@ class RFPlotter(RPFPlotter):
         cmap
             Colormap string specification.
         color_by
-            Name of key in rpf_dict that specifies which values to use when
+            Name of key in metrics_dict that specifies which values to use when
             coloring points along the ROC curve; this should be either "frac"
             for fraction of cases flagged or "thresh" for score discrimination
             threshold.
@@ -82,8 +85,8 @@ class RFPlotter(RPFPlotter):
         # Specify which values to plot in X and Y
         x_key = "frac"
         y_key = "tpr_w" if weighted else "tpr"
-        x = self.rpf_dict[x_key]
-        y = self.rpf_dict[y_key]
+        x = self.metrics_dict[x_key]
+        y = self.metrics_dict[y_key]
 
         # Make plot
         if not bootstrapped:
@@ -98,7 +101,7 @@ class RFPlotter(RPFPlotter):
         ax.plot([0, 1], [0, 1], "k-")
 
         # Extract AUC
-        auc = self.rpf_dict["rf_auc_w" if weighted else "rf_auc"]
+        auc = self.metrics_dict["rf_auc_w" if weighted else "rf_auc"]
         auc = auc[0] if type(
             auc) == np.ndarray and not bootstrapped else np.mean(auc)
 

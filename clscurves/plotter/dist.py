@@ -4,17 +4,17 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 
-from clscurves.plotter.plotter import RPFPlotter
+from clscurves.plotter.plotter import MetricsPlotter
 
 
-class DistPlotter(RPFPlotter):
+class DistPlotter(MetricsPlotter):
 
     def __init__(
             self,
-            rpf_dict: Dict[str, Any],
+            metrics_dict: Dict[str, Any],
             score_is_probability: bool,
             reverse_thresh: bool):
-        super().__init__(rpf_dict, score_is_probability)
+        super().__init__(metrics_dict, score_is_probability)
         self.reverse_thresh = reverse_thresh
 
     def plot_dist(
@@ -64,7 +64,7 @@ class DistPlotter(RPFPlotter):
         cmap
             Colormap string specification.
         color_by
-            Name of key in rpf_dict that specifies which values to use when
+            Name of key in metrics_dict that specifies which values to use when
             coloring points along the PDF or CDF curve.
         cbar_rng
             Specify a color bar range of the form [min_value, max_value] to
@@ -105,22 +105,22 @@ class DistPlotter(RPFPlotter):
             "`kind` must be \"cdf\" or \"pdf\""
 
         # Specify which values to plot in X and Y
-        x = self.rpf_dict["thresh"] * np.ones(
-            1 + self.rpf_dict["num_bootstrap_samples"])
+        x = self.metrics_dict["thresh"] * np.ones(
+            1 + self.metrics_dict["num_bootstrap_samples"])
 
         # Compute CDF
         _w = "_w" if weighted else ""
         if label == "all":
-            cdf = 1 - self.rpf_dict["frac" + _w]
+            cdf = 1 - self.metrics_dict["frac" + _w]
         elif label == 1:
-            denom = self.rpf_dict["pos" + _w]
-            cdf = 1 - self.rpf_dict["tp" + _w] / denom
+            denom = self.metrics_dict["pos" + _w]
+            cdf = 1 - self.metrics_dict["tp" + _w] / denom
         elif label == 0:
-            denom = self.rpf_dict["neg" + _w]
-            cdf = 1 - self.rpf_dict["fp" + _w] / denom
+            denom = self.metrics_dict["neg" + _w]
+            cdf = 1 - self.metrics_dict["fp" + _w] / denom
         else:
-            denom = self.rpf_dict["unk" + _w]
-            cdf = 1 - self.rpf_dict["up" + _w] / denom
+            denom = self.metrics_dict["unk" + _w]
+            cdf = 1 - self.metrics_dict["up" + _w] / denom
 
         # Account for reversed-behavior thresholds
         if self.reverse_thresh:

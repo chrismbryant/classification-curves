@@ -1,6 +1,6 @@
 import pytest
 
-from clscurves.config import RPFDictKeys
+from clscurves.config import MetricsAliases
 
 
 @pytest.mark.parametrize("key", [
@@ -22,5 +22,5 @@ from clscurves.config import RPFDictKeys
     "thresh"
 ])
 def test_rpf_dict_keys(key: str):
-    cbar_dict = RPFDictKeys.cbar_dict
+    cbar_dict = MetricsAliases.cbar_dict
     assert key in cbar_dict
