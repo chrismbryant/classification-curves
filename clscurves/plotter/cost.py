@@ -4,16 +4,16 @@ import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 
-from clscurves.plotter.plotter import RPFPlotter
+from clscurves.plotter.plotter import MetricsPlotter
 
 
-class CostPlotter(RPFPlotter):
+class CostPlotter(MetricsPlotter):
 
     def __init__(
             self,
-            rpf_dict: Dict[str, Any],
+            metrics_dict: Dict[str, Any],
             score_is_probability: bool):
-        super().__init__(rpf_dict, score_is_probability)
+        super().__init__(metrics_dict, score_is_probability)
 
     def compute_cost(
             self,
@@ -22,13 +22,13 @@ class CostPlotter(RPFPlotter):
             use_weighted_fn=False,
             use_weighted_fp=False):
 
-        fn = self.rpf_dict["fn_w"] if use_weighted_fn else self.rpf_dict["fn"]
-        fp = self.rpf_dict["fp_w"] if use_weighted_fp else self.rpf_dict["fp"]
+        fn = self.metrics_dict["fn_w"] if use_weighted_fn else self.metrics_dict["fn"] # noqa
+        fp = self.metrics_dict["fp_w"] if use_weighted_fp else self.metrics_dict["fp"] # noqa
 
-        self.rpf_dict["fn_cost"] = fn_cost_multiplier * fn
-        self.rpf_dict["fp_cost"] = fp_cost_multiplier * fp
-        self.rpf_dict["cost"] = self.rpf_dict["fn_cost"] + self.rpf_dict[
-            "fp_cost"]
+        self.metrics_dict["fn_cost"] = fn_cost_multiplier * fn
+        self.metrics_dict["fp_cost"] = fp_cost_multiplier * fp
+        self.metrics_dict["cost"] = self.metrics_dict["fn_cost"] + \
+            self.metrics_dict["fp_cost"]
 
     def plot_cost(
             self,
@@ -62,8 +62,8 @@ class CostPlotter(RPFPlotter):
             Boolean to specify whether the x-axis should be scaled by a log10
             transformation.
         x_axis
-            Name of key in rpf_dict that specifies which values to use for the
-            x coordinates of the cost curve.
+            Name of key in metrics_dict that specifies which values to use for
+            the x coordinates of the cost curve.
         x_label
             Label to apply to x-axis. Defaults for common choices of x-axis
             will be supplied if no x-label override is supplied here.
@@ -76,7 +76,7 @@ class CostPlotter(RPFPlotter):
             Specify a y-axis range of the form [min_value, max_value] to
             override the default range.
         color_by
-            Name of key in rpf_dict that specifies which values to use when
+            Name of key in metrics_dict that specifies which values to use when
             coloring points along the cost curve.
         cbar_rng
             Specify a color bar range of the form [min_value, max_value] to
@@ -105,7 +105,7 @@ class CostPlotter(RPFPlotter):
         Optional[Tuple[plt.figure, plt.axes]]
             The plot's figure and axis object.
         """
-        assert "cost" in self.rpf_dict, "Run `compute_cost` first."
+        assert "cost" in self.metrics_dict, "Run `compute_cost` first."
 
         # Create figure
         fig = plt.figure(figsize=(10, 6), dpi=dpi)
@@ -117,9 +117,9 @@ class CostPlotter(RPFPlotter):
             [vmin, vmax] = cbar_rng
         else:
             vmin = 0.0 if color_by == "frac" else np.min(
-                self.rpf_dict[color_by])
+                self.metrics_dict[color_by])
             vmax = 1.0 if color_by == "frac" else np.max(
-                self.rpf_dict[color_by])
+                self.metrics_dict[color_by])
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
@@ -128,9 +128,9 @@ class CostPlotter(RPFPlotter):
         cbar.set_label("Fraction Flagged" if color_by == "frac" else label)
 
         # Make scatter plot
-        cost = self.rpf_dict["cost"]
-        x = self.rpf_dict[x_axis]
-        colors = self.rpf_dict[color_by]
+        cost = self.metrics_dict["cost"]
+        x = self.metrics_dict[x_axis]
+        colors = self.metrics_dict[color_by]
 
         # Make main colored scatter plot
         ax.scatter(

@@ -3,10 +3,10 @@ from typing import Dict, Any, Optional, List, Tuple
 import numpy as np
 from matplotlib import pyplot as plt
 
-from clscurves.plotter.plotter import RPFPlotter
+from clscurves.plotter.plotter import MetricsPlotter
 
 
-class PRGPlotter(RPFPlotter):
+class PRGPlotter(MetricsPlotter):
     """Plot the PRG (Precision-Recall-Gain) curve.
 
     "Precision-Recall-Gain" plots defined
@@ -18,8 +18,11 @@ class PRGPlotter(RPFPlotter):
     Because it's unclear how a positive-example weight should affect the
     quantities in a PRG plot, we do not support weighted plotting at this time.
     """
-    def __init__(self, rpf_dict: Dict[str, Any], score_is_probability: bool):
-        super().__init__(rpf_dict, score_is_probability)
+    def __init__(
+            self,
+            metrics_dict: Dict[str, Any],
+            score_is_probability: bool):
+        super().__init__(metrics_dict, score_is_probability)
 
     def plot_prg(
             self,
@@ -34,7 +37,7 @@ class PRGPlotter(RPFPlotter):
             bootstrap_color: str = "black",
             op_value: Optional[float] = None,
             return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
-        """Plot the PR (Precision & Recall) curve.
+        """Plot the PRG (Precision-Recall-Gain) curve.
 
         Parameters
         ----------
@@ -43,7 +46,7 @@ class PRGPlotter(RPFPlotter):
         cmap
             Colormap string specification.
         color_by
-            Name of key in rpf_dict that specifies which values to use when
+            Name of key in metrics_dict that specifies which values to use when
             coloring points along the PRG curve; this should be either "frac"
             for fraction of cases flagged or "thresh" for score discrimination
             threshold.
@@ -77,8 +80,8 @@ class PRGPlotter(RPFPlotter):
         # Specify which values to plot in X and Y
         x_key = "recall_gain"
         y_key = "precision_gain"
-        x = self.rpf_dict[x_key]
-        y = self.rpf_dict[y_key]
+        x = self.metrics_dict[x_key]
+        y = self.metrics_dict[y_key]
 
         # Make plot
         if not bootstrapped:
@@ -90,12 +93,12 @@ class PRGPlotter(RPFPlotter):
                 cbar_label, bootstrap_alpha, bootstrap_color)
 
         # Extract PRG AUC
-        auc = self.rpf_dict["prg_auc"]
+        auc = self.metrics_dict["prg_auc"]
         auc = auc[0] if type(
             auc) == np.ndarray and not bootstrapped else np.mean(auc)
 
         # Extract class imbalance
-        imb = self.rpf_dict["imbalance"]
+        imb = self.metrics_dict["imbalance"]
         imb = imb[0] if type(
             imb) == np.ndarray and not bootstrapped else np.mean(imb)
 

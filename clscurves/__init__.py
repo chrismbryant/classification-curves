@@ -1,2 +1,2 @@
 # flake8: noqa
-from .generator import RPFGenerator
+from .generator import MetricsGenerator
