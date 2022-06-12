@@ -179,6 +179,7 @@ class MetricsPlotter(MetricsAliases):
             color_by,
             cbar_rng,
             cbar_label,
+            grid,
             fig,
             ax)
 
