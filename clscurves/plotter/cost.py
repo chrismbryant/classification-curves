@@ -43,6 +43,7 @@ class CostPlotter(MetricsPlotter):
             color_by: str = "frac",
             cbar_rng: Optional[List[float]] = None,
             cbar_label: Optional[str] = None,
+            grid: bool = True,
             dpi: Optional[int] = None,
             bootstrapped: bool = False,
             bootstrap_alpha: float = 0.15,
@@ -84,6 +85,8 @@ class CostPlotter(MetricsPlotter):
         cbar_label
             Custom label to apply to the color bar. If None is supplied, the
             default ("Fraction Flagged") will be used.
+        grid
+            Whether to plot grid lines.
         dpi
             Resolution in "dots per inch" of resulting figure. If not
             specified, the Matplotlib default will be used. A good rule of
@@ -110,7 +113,7 @@ class CostPlotter(MetricsPlotter):
         # Create figure
         fig = plt.figure(figsize=(10, 6), dpi=dpi)
         ax = fig.add_subplot(1, 1, 1)
-        ax.grid(True)
+        ax.grid(grid)
 
         # Make Color Bar
         if cbar_rng is not None:

@@ -23,6 +23,7 @@ class RFPlotter(MetricsPlotter):
             color_by: str = "thresh",
             cbar_rng: Optional[List[float]] = None,
             cbar_label: Optional[str] = None,
+            grid: bool = True,
             dpi: Optional[int] = None,
             bootstrapped: bool = False,
             bootstrap_alpha: float = 0.15,
@@ -62,6 +63,8 @@ class RFPlotter(MetricsPlotter):
             Custom label to apply to the color bar. If None is supplied, the
             default ("Threshold Value" or "Fraction Flagged", depending on the
             ``color_by`` value) will be used.
+        grid
+            Whether to plot grid lines.
         dpi
             Resolution in "dots per inch" of resulting figure. If not
             specified, the Matplotlib default will be used. A good rule of
@@ -91,11 +94,12 @@ class RFPlotter(MetricsPlotter):
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label)
+                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng,
+                cbar_label, grid)
         else:
             fig, ax = self._make_bootstrap_plot(
-                x, y, cmap, dpi, color_by, cbar_rng,
-                cbar_label, bootstrap_alpha, bootstrap_color)
+                x, y, cmap, dpi, color_by, cbar_rng, cbar_label,
+                grid, bootstrap_alpha, bootstrap_color)
 
         # Plot line of randomness
         ax.plot([0, 1], [0, 1], "k-")
