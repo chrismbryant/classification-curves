@@ -1,11 +1,23 @@
 [tool.poetry]
 name = "clscurves"
-version = "0.0.3"
+version = "0.0.0"  # placeholder
 description = "Compute and plot bootstrapped performance curves for classification problems."
 authors = ["Christopher Bryant <cbryant@berkeley.edu>"]
 maintainers = ["Christopher Bryant <cbryant@berkeley.edu>"]
 readme = "README.md"
 repository = "https://github.com/chrismbryant/classification-curves"
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern  = "^(?P<base>v?\\d+\\.\\d+\\.\\d+)(-?((?P<stage>[a-zA-Z]+)\\.?(?P<revision>\\d+)?))?"
+format-jinja = """
+    {%- if distance == 0 -%}
+        {{- base -}}
+    {%- else -%}
+        {{- base }}.dev{{ distance }}+{{ commit }}
+    {%- endif -%}
+"""
 
 [tool.poetry.dependencies]
 python = ">=3.7.1,<3.10"
@@ -23,5 +35,5 @@ jinja2 = "<3.1"
 furo = "^2021.4.11-beta.34"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
 build-backend = "poetry.core.masonry.api"

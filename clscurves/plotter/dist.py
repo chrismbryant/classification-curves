@@ -29,6 +29,7 @@ class DistPlotter(MetricsPlotter):
             color_by: str = "tpr",
             cbar_rng: Optional[List[float]] = None,
             cbar_label: Optional[str] = None,
+            grid: bool = True,
             x_rng: Optional[List[float]] = None,
             y_rng: Optional[List[float]] = None,
             dpi: Optional[int] = None,
@@ -72,6 +73,8 @@ class DistPlotter(MetricsPlotter):
         cbar_label
             Custom label to apply to the color bar. If `None` is supplied, a
             default will be selected from the ``cbar_dict``.
+        grid
+            Whether to plot grid lines.
         x_rng
             Range of the horizontal axis.
         y_rng
@@ -144,11 +147,12 @@ class DistPlotter(MetricsPlotter):
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label)
+                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng,
+                cbar_label, grid)
         else:
             fig, ax = self._make_bootstrap_plot(
-                x, y, cmap, dpi, color_by, cbar_rng,
-                cbar_label, bootstrap_alpha, bootstrap_color)
+                x, y, cmap, dpi, color_by, cbar_rng, cbar_label,
+                grid, bootstrap_alpha, bootstrap_color)
 
         # Change x-axis range
         if x_rng:

@@ -86,6 +86,7 @@ class MetricsPlotter(MetricsAliases):
             color_by: str,
             cbar_rng: List[float],
             cbar_label: str,
+            grid: bool,
             fig: Optional[plt.figure] = None,
             ax: Optional[plt.axes] = None) -> Tuple[plt.figure, plt.axes]:
         """A helper function to create a base Matplotlib scatter plot figure
@@ -96,7 +97,7 @@ class MetricsPlotter(MetricsAliases):
         if not ax:
             fig = plt.figure(figsize=(10, 7), dpi=dpi)
             ax = fig.add_subplot(1, 1, 1, aspect="equal")
-            ax.grid(True)
+            ax.grid(grid)
             ax.set_xlim(0, 1)
             ax.set_ylim(0, 1)
 
@@ -141,6 +142,7 @@ class MetricsPlotter(MetricsAliases):
             color_by: str,
             cbar_rng: List[float],
             cbar_label: str,
+            grid: bool,
             alpha: float,
             bootstrap_color: str) -> Tuple[plt.figure, plt.axes]:
         """A helper function to add faint bootstrapped reference curves to an
@@ -155,7 +157,7 @@ class MetricsPlotter(MetricsAliases):
         # Create figure
         fig = plt.figure(figsize=(10, 7), dpi=dpi)
         ax = fig.add_subplot(1, 1, 1, aspect="equal")
-        ax.grid(True)
+        ax.grid(grid)
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
 

@@ -27,6 +27,7 @@ class PRPlotter(MetricsPlotter):
             bootstrap_alpha: float = 0.15,
             bootstrap_color: str = "black",
             f1_contour: bool = False,
+            grid: bool = True,
             op_value: Optional[float] = None,
             return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
         """Plot the PR (Precision & Recall) curve.
@@ -72,6 +73,8 @@ class PRPlotter(MetricsPlotter):
             Color of bootstrap curves.
         f1_contour
             Whether to include reference contours for curves of constant F1.
+        grid
+            Whether to plot grid lines.
         op_value
             Threshold value to plot a confidence ellipse for when the plot is
             bootstrapped.
@@ -89,11 +92,12 @@ class PRPlotter(MetricsPlotter):
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label)
+                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng,
+                cbar_label, grid)
         else:
             fig, ax = self._make_bootstrap_plot(
-                x, y, cmap, dpi, color_by, cbar_rng,
-                cbar_label, bootstrap_alpha, bootstrap_color)
+                x, y, cmap, dpi, color_by, cbar_rng, cbar_label,
+                grid, bootstrap_alpha, bootstrap_color)
 
         # Plot F1 contour curves
         if f1_contour:
