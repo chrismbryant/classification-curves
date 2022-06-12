@@ -15,6 +15,7 @@ class MetricsAliases:
         "fn_w": "Weighted False Negative (FN) Sum",
         "tn_w": "Weighted True Negative (TN) Sum",
         "precision": "Precision = TP/(TP + FP)",
+        "f1": "F1 Score",
         "tpr": "Recall = TP/(TP + FN)",
         "fpr": "FPR = FP/(FP + TN)",
         "tpr_w": "Weighted Recall = TP/(TP + FN)",

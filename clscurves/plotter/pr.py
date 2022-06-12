@@ -26,6 +26,7 @@ class PRPlotter(MetricsPlotter):
             bootstrapped: bool = False,
             bootstrap_alpha: float = 0.15,
             bootstrap_color: str = "black",
+            f1_contour: bool = False,
             op_value: Optional[float] = None,
             return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
         """Plot the PR (Precision & Recall) curve.
@@ -69,6 +70,8 @@ class PRPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        f1_contour
+            Whether to include reference contours for curves of constant F1.
         op_value
             Threshold value to plot a confidence ellipse for when the plot is
             bootstrapped.
@@ -91,6 +94,32 @@ class PRPlotter(MetricsPlotter):
             fig, ax = self._make_bootstrap_plot(
                 x, y, cmap, dpi, color_by, cbar_rng,
                 cbar_label, bootstrap_alpha, bootstrap_color)
+
+        # Plot F1 contour curves
+        if f1_contour:
+            def f1_contour(f: float):
+                r = np.linspace(f / (2 - f), 1, 200)
+                p = f * r / (2 * r - f)
+                return r, p
+
+            f1_values = np.arange(0.1, 1, 0.1)
+            for f1 in f1_values:
+                rec, pr = f1_contour(f1)
+                ax.plot(
+                    rec,
+                    pr,
+                    zorder=-1,
+                    c="black",
+                    ls="--",
+                    alpha=0.3,
+                )
+                ax.text(
+                    x=rec[0] + 0.005 + 0.02 * f1 ** 2,
+                    y=0.98,
+                    s=np.round(f1, 1),
+                    size=8,
+                    alpha=0.6,
+                )
 
         # Extract class imbalance
         imb = self.metrics_dict["imbalance"]

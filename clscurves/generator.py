@@ -467,6 +467,7 @@ class MetricsGenerator(
             "frac": (d["tp"] + d["fp"] + d.get("up", 0)) / tot,
             "frac_w": (d["tp_w"] + d["fp_w"] + d.get("up_w", 0)) / tot_w,
             "precision": precision,
+            "f1": np.nan_to_num(2 * precision * recall / (precision + recall)),
             "recall_gain": recall_gain,
             "precision_gain": precision_gain
         }
@@ -581,6 +582,7 @@ class MetricsGenerator(
                 "up_w": [optional] numpy array of unlabeled weighted pred. pos. values,
                 "un_w": [optional] numpy array of unlabeled weighted pred. neg. values,
                 "precision": numpy array of precision values,
+                "f1": numpy array of f1 score values,
                 "tpr": numpy array of recall values,
                 "fpr": numpy array of false-positive rate values,
                 "tpr_w": numpy array of weighted recall values,
