@@ -1,7 +1,8 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from matplotlib import pyplot as plt, patches
+from scipy.spatial import ConvexHull
 
 
 class CovarianceEllipseGenerator:
@@ -156,3 +157,132 @@ class CovarianceEllipseGenerator:
             zorder=10000,
             alpha=1,
             s=20)
+
+
+class EllipsePairHull:
+
+    def __init__(
+        self,
+        ellipse_0: patches.Ellipse,
+        ellipse_1: patches.Ellipse,
+        left_to_right: bool = True,
+    ) -> None:
+        """A class to compute the convext hull for a pair of ellipses.
+        
+        Specifically, this computes "lower" and "upper" line segments that
+        complete the convext hull of two ellipses.
+
+        Parameters
+        ----------
+        ellipse_0 : patches.Ellipse
+            First ellipse.
+        ellipse_1 : patches.Ellipse
+            Second ellipse.
+        left_to_right : bool, optional
+            This controls whether the line segments are specified from left to
+            right or right to left.
+        """
+        self.ellipse_0 = ellipse_0
+        self.ellipse_1 = ellipse_1
+        self.left_to_right = left_to_right
+    
+    def get_hull_segments(self) -> List[np.ndarray]:
+        """Compute the lower and upper hull segments.
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of two line segments, each specified as a 2x2 array of points,
+            where each row is an (x, y) coordinate.
+        """
+        # Get the ellipse points and indices corresponding to the hull
+        points, hull = self.get_points_and_hull()
+        num_points_0 = self.ellipse_0.get_verts().shape[0]
+
+        # Find points where the hull switches between the ellipses
+        switches = np.abs(np.diff((hull < num_points_0).astype(int)))
+        switches = np.where(switches)[0]
+        segments = []
+        for switch in switches:
+            segment = np.stack([points[hull[switch]], points[hull[switch + 1]]])
+            segments.append(segment)
+        if len(segments) == 1:
+            segments.append([hull[-1], hull[0]])
+        
+        # Sort the segments
+        segments = self.lower_then_upper(segments)
+        segments = self.order_horizontally(segments)
+
+        return segments
+    
+    def get_points_and_hull(self) -> Tuple[np.ndarray, List[int]]:
+        """Get the ellipse points and hull indices.
+        
+        Returns
+        -------
+        np.ndarray
+            Array of points defining the ellipses.
+        List[int]
+            List of indices describe which ellipse points correspond to the
+            hull (in counterclockwise order).
+        """
+        # Get the points on the ellipses
+        e0_points = self.ellipse_0.get_verts()
+        e1_points = self.ellipse_1.get_verts()
+        points = np.concatenate([e0_points, e1_points])
+
+        # Counterclockwise ordering of points in the hull
+        hull = ConvexHull(points).vertices
+
+        return points, hull
+        
+    @staticmethod
+    def lower_then_upper(segments: List[np.ndarray]) -> List[np.ndarray]:
+        """Return the lower then upper segments.
+        
+        Parameters
+        ----------
+        segments : List[np.ndarray]
+            List of line segments. Each element in this list is a 2x2 array,
+            where each row is an (x, y) coordinate.
+        
+        Returns
+        -------
+        List[np.ndarray]
+            List of line segments.
+        """
+        y_mean_0 = np.mean(segments[0][:, 1])
+        y_mean_1 = np.mean(segments[1][:, 1])
+        if y_mean_0 < y_mean_1:
+            return segments
+        else:
+            return segments[::-1]
+    
+    def order_horizontally(
+        self,
+        segments: List[np.ndarray],
+    ) -> List[np.ndarray]:
+        """Define each segment from left to right.
+        
+        Parameters
+        ----------
+        segments : List[np.ndarray]
+            List of line segments. Each element in this list is a 2x2 array,
+            where each row is an (x, y) coordinate.
+        
+        Returns
+        -------
+        List[np.ndarray]
+            List of line segments.
+        """
+        new_segments = []
+        for segment in segments:
+            if segment[0, 0] > segment[1, 0]:
+                new_segment = segment[::-1]
+            else:
+                new_segment = segment
+            if self.left_to_right:
+                new_segments.append(new_segment)
+            else:
+                new_segments.append(new_segment[::-1])
+        return new_segments
