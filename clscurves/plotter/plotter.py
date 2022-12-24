@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional, List, Tuple, Union
 
+import alphashape
 import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
@@ -224,30 +225,62 @@ class MetricsPlotter(MetricsAliases):
         x_boot = x[:, 1:]
         y_boot = y[:, 1:]
 
-        ellipses = []
-        for i in range(x_boot.shape[0]):
-            # Compute confidence ellipse for each threshold
-            data = np.array([x_boot[i, :], y_boot[i, :]])
-            ceg = CovarianceEllipseGenerator(data)
-            ellipse = ceg.create_ellipse_patch(conf)
-            ellipses.append(ellipse)
+        # ellipses = []
+        # for i in range(x_boot.shape[0]):
+        #     # Compute confidence ellipse for each threshold
+        #     data = np.array([x_boot[i, :], y_boot[i, :]])
+        #     ceg = CovarianceEllipseGenerator(data)
+        #     ellipse = ceg.create_ellipse_patch(conf, alpha=0.01)
+        #     ellipses.append(ellipse)
         
-        # Compute convex hull of each pair of adjacent ellipses
-        lower_bound = []
-        upper_bound = []
-        left_to_right = x[0, 0] < x[-1, 0]
-        for i in range(len(ellipses) - 1):
-            try:
-                eph = EllipsePairHull(
-                    ellipses[i],
-                    ellipses[i + 1],
-                    left_to_right=left_to_right)
-                [lower, upper] = eph.get_hull_segments()
-                lower_bound.append(lower[0, :])
-                upper_bound.append(upper[0, :])
-            except:
-                pass
-        lower_bound = np.array(lower_bound)  # Shape: (num_thresholds - 1, 2)
-        upper_bound = np.array(upper_bound)
+        # # Compute convex hull of each pair of adjacent ellipses
+        # lower_bound = []
+        # upper_bound = []
+        # left_to_right = x[0, 0] < x[-1, 0]
+        # for i in range(len(ellipses) - 1):
+        #     try:
+        #         eph = EllipsePairHull(
+        #             ellipses[i],
+        #             ellipses[i + 1],
+        #             left_to_right=left_to_right)
+        #         [lower, upper] = eph.get_hull_segments()
+        #         lower_bound.append(lower[0, :])
+        #         upper_bound.append(upper[0, :])
+        #     except:
+        #         pass
+        # lower_bound = np.array(lower_bound)  # Shape: (num_thresholds - 1, 2)
+        # upper_bound = np.array(upper_bound)
 
-        return lower_bound, upper_bound, ellipses
+        upper_bound = []
+        lower_bound = []
+        all_points = []
+        for i in range(x_boot.shape[0]):
+            data = np.array([x_boot[i, :], y_boot[i, :]])
+            center = np.mean(data, axis=1)
+            c = np.cov(data)
+            (eigenval, eigenvec) = np.linalg.eig(c)
+            num_std = np.sqrt(-2 * np.log(1 - conf))
+            points = np.array([
+                center + np.sqrt(eigenval[0]) * num_std * eigenvec[:, 0],
+                center + np.sqrt(eigenval[1]) * num_std * eigenvec[:, 1],
+                center - np.sqrt(eigenval[0]) * num_std * eigenvec[:, 0],
+                center - np.sqrt(eigenval[1]) * num_std * eigenvec[:, 1]
+            ])
+            highest_point = np.argmax(points[:, 1])
+            lowest_point = np.argmin(points[:, 1])
+            upper_bound.append(points[highest_point, :])
+            lower_bound.append(points[lowest_point, :])
+            all_points.append(points)
+        upper_bound = np.array(upper_bound)
+        lower_bound = np.array(lower_bound)
+        all_points = np.vstack(all_points)
+        print("Optimizing alphashape alpha value...")
+        # alpha = 0.95 * alphashape.optimizealpha(all_points)
+        alpha = 5
+        print(f" ==> alpha = {alpha}")
+        print("Constructing hull...")
+        hull = alphashape.alphashape(all_points, alpha)
+        print("Hull constructed.")
+        hull_points = hull.exterior.coords.xy
+
+        return lower_bound, upper_bound, all_points, hull_points

@@ -114,15 +114,22 @@ class PRPlotter(MetricsPlotter):
             show_confidence_band = [show_confidence_band] if isinstance(
                 show_confidence_band, float) else show_confidence_band
             for conf in show_confidence_band:
-                lower_bound, upper_bound, ellipses = self._make_confidence_band(
+                lower_bound, upper_bound, all_points, hull_points = self._make_confidence_band(
                     x, y, conf)
-                ax.fill_between(
-                    np.append(lower_bound[:, 0], upper_bound[::-1, 0]),
-                    np.append(lower_bound[:, 1], upper_bound[::-1, 1]),
-                    color="black",
-                    alpha=0.1)
-                for ellipse in ellipses:
-                    ax.add_patch(ellipse)
+                # ax.scatter(all_points[:, 0], all_points[:, 1], c="black", s=1)
+                # print(len(hull_points[0]))
+                ax.fill_between(hull_points[0], hull_points[1], color="black", alpha=0.2)
+                # ax.scatter(hull_points[0], hull_points[1], c="red", s=1)
+
+                # ax.plot(lower_bound[:, 0], lower_bound[:, 1], c="tab:red")
+                # ax.plot(upper_bound[:, 0], upper_bound[:, 1], c="tab:blue")
+                # ax.fill_between(
+                #     np.append(lower_bound[:, 0], upper_bound[::-1, 0]),
+                #     np.append(lower_bound[:, 1], upper_bound[::-1, 1]),
+                #     color="black",
+                #     alpha=0.1)
+                # for ellipse in ellipses:
+                #     ax.add_patch(ellipse)
 
         # Plot F1 contour curves
         if f1_contour:
