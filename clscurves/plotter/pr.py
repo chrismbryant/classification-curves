@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -26,6 +26,7 @@ class PRPlotter(MetricsPlotter):
             bootstrapped: bool = False,
             bootstrap_alpha: float = 0.15,
             bootstrap_color: str = "black",
+            show_confidence_band: Union[bool, float, List[float]] = False,
             f1_contour: bool = False,
             grid: bool = True,
             op_value: Optional[float] = None,
@@ -71,6 +72,13 @@ class PRPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        show_confidence_band
+            Whether to plot a confidence band around the main colored
+            performance scatter plot. If set to True, will plot a 95%
+            confidence band. If set to a float between 0 and 1, will plot a
+            confidence band at the specified level. If set to a list of
+            floats between 0 and 1, will plot a confidence band at each
+            specified level.
         f1_contour
             Whether to include reference contours for curves of constant F1.
         grid
@@ -98,6 +106,30 @@ class PRPlotter(MetricsPlotter):
             fig, ax = self._make_bootstrap_plot(
                 x, y, cmap, dpi, color_by, cbar_rng, cbar_label,
                 grid, bootstrap_alpha, bootstrap_color)
+
+        # Make confidence band
+        if show_confidence_band is True:
+            show_confidence_band = 0.95
+        if show_confidence_band:
+            show_confidence_band = [show_confidence_band] if isinstance(
+                show_confidence_band, float) else show_confidence_band
+            for conf in show_confidence_band:
+                lower_bound, upper_bound, all_points, hull_points = self._make_confidence_band(
+                    x, y, conf)
+                # ax.scatter(all_points[:, 0], all_points[:, 1], c="black", s=1)
+                # print(len(hull_points[0]))
+                ax.fill_between(hull_points[0], hull_points[1], color="black", alpha=0.2)
+                # ax.scatter(hull_points[0], hull_points[1], c="red", s=1)
+
+                # ax.plot(lower_bound[:, 0], lower_bound[:, 1], c="tab:red")
+                # ax.plot(upper_bound[:, 0], upper_bound[:, 1], c="tab:blue")
+                # ax.fill_between(
+                #     np.append(lower_bound[:, 0], upper_bound[::-1, 0]),
+                #     np.append(lower_bound[:, 1], upper_bound[::-1, 1]),
+                #     color="black",
+                #     alpha=0.1)
+                # for ellipse in ellipses:
+                #     ax.add_patch(ellipse)
 
         # Plot F1 contour curves
         if f1_contour:

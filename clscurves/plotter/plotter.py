@@ -1,11 +1,12 @@
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Union
 
+import alphashape
 import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 
 from clscurves.config import MetricsAliases
-from clscurves.covariance import CovarianceEllipseGenerator
+from clscurves.covariance import CovarianceEllipseGenerator, EllipsePairHull
 
 
 class MetricsPlotter(MetricsAliases):
@@ -29,7 +30,7 @@ class MetricsPlotter(MetricsAliases):
             y_key: str,
             ax: plt.axes,
             thresh_key: str = "thresh"):
-        """A helper function to add a confidence ellipse to an metrics plot
+        """A helper function to add a confidence ellipse to a metrics plot
         given a threshold operating value.
 
         Parameters
@@ -79,8 +80,8 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_plot(
             self,
-            x: np.array,
-            y: np.array,
+            x: np.ndarray,
+            y: np.ndarray,
             cmap: str,
             dpi: int,
             color_by: str,
@@ -135,8 +136,8 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_bootstrap_plot(
             self,
-            x: np.array,
-            y: np.array,
+            x: np.ndarray,
+            y: np.ndarray,
             cmap: str,
             dpi: int,
             color_by: str,
@@ -145,7 +146,7 @@ class MetricsPlotter(MetricsAliases):
             grid: bool,
             alpha: float,
             bootstrap_color: str) -> Tuple[plt.figure, plt.axes]:
-        """A helper function to add faint bootstrapped reference curves to an
+        """A helper function to add faint bootstrapped reference curves to a
         metrics plot to visualize the confidence we have in the main metrics
         curve.
         """
@@ -184,3 +185,102 @@ class MetricsPlotter(MetricsAliases):
             ax)
 
         return fig, ax
+
+    def _make_confidence_band(
+            self,
+            x: np.ndarray,
+            y: np.ndarray,
+            conf: Union[float, List[float]]) -> Tuple[np.ndarray, np.ndarray]:
+        """A helper function to add a confidence band to a metrics plot.
+
+        This computes the bootstrapped confidence ellipse at each threshold,
+        then draws the convex hull of each pair of adjacent ellipses to create
+        the confidence band.
+
+        Parameters
+        ----------
+        x
+            The x values of the metrics curve; Shape: (num_thresholds,
+            num_bootstraps + 1).
+        y
+            The y values of the metrics curve; Shape: same as x.
+        conf
+            Confidence level(s) to compute. If a list, multiple overlayed
+            confidence bands will be drawn.
+        
+        Returns
+        -------
+        lower: np.ndarray
+            An array of shape (num_thresholds - 1, 2) containing the x and y
+            coordinates of the lower bound of the confidence band.
+        upper: np.ndarray
+            An array of shape (num_thresholds - 1, 2) containing the x and y
+            coordinates of the upper bound of the confidence band.
+        """
+
+        assert self.metrics_dict["num_bootstrap_samples"] > 0, \
+            "Metrics must be bootstrapped to compute confidence bands."
+        
+        # Keep only bootstrapped curves (discard original curve)
+        x_boot = x[:, 1:]
+        y_boot = y[:, 1:]
+
+        # ellipses = []
+        # for i in range(x_boot.shape[0]):
+        #     # Compute confidence ellipse for each threshold
+        #     data = np.array([x_boot[i, :], y_boot[i, :]])
+        #     ceg = CovarianceEllipseGenerator(data)
+        #     ellipse = ceg.create_ellipse_patch(conf, alpha=0.01)
+        #     ellipses.append(ellipse)
+        
+        # # Compute convex hull of each pair of adjacent ellipses
+        # lower_bound = []
+        # upper_bound = []
+        # left_to_right = x[0, 0] < x[-1, 0]
+        # for i in range(len(ellipses) - 1):
+        #     try:
+        #         eph = EllipsePairHull(
+        #             ellipses[i],
+        #             ellipses[i + 1],
+        #             left_to_right=left_to_right)
+        #         [lower, upper] = eph.get_hull_segments()
+        #         lower_bound.append(lower[0, :])
+        #         upper_bound.append(upper[0, :])
+        #     except:
+        #         pass
+        # lower_bound = np.array(lower_bound)  # Shape: (num_thresholds - 1, 2)
+        # upper_bound = np.array(upper_bound)
+
+        upper_bound = []
+        lower_bound = []
+        all_points = []
+        for i in range(x_boot.shape[0]):
+            data = np.array([x_boot[i, :], y_boot[i, :]])
+            center = np.mean(data, axis=1)
+            c = np.cov(data)
+            (eigenval, eigenvec) = np.linalg.eig(c)
+            num_std = np.sqrt(-2 * np.log(1 - conf))
+            points = np.array([
+                center + np.sqrt(eigenval[0]) * num_std * eigenvec[:, 0],
+                center + np.sqrt(eigenval[1]) * num_std * eigenvec[:, 1],
+                center - np.sqrt(eigenval[0]) * num_std * eigenvec[:, 0],
+                center - np.sqrt(eigenval[1]) * num_std * eigenvec[:, 1]
+            ])
+            highest_point = np.argmax(points[:, 1])
+            lowest_point = np.argmin(points[:, 1])
+            upper_bound.append(points[highest_point, :])
+            lower_bound.append(points[lowest_point, :])
+            all_points.append(points)
+        upper_bound = np.array(upper_bound)
+        lower_bound = np.array(lower_bound)
+        all_points = np.vstack(all_points)
+        print("Optimizing alphashape alpha value...")
+        # alpha = 0.95 * alphashape.optimizealpha(all_points)
+        alpha = 5
+        print(f" ==> alpha = {alpha}")
+        print("Constructing hull...")
+        hull = alphashape.alphashape(all_points, alpha)
+        print("Hull constructed.")
+        hull_points = hull.exterior.coords.xy
+
+        return lower_bound, upper_bound, all_points, hull_points
