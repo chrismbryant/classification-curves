@@ -71,6 +71,8 @@ jobs:
         rm -f dist/*
         poetry build
     - name: Publish package
+      env: 
+        PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
       run: |
         poetry publish
     #----------------------------------------------
