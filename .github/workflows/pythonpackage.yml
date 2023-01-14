@@ -86,21 +86,24 @@ jobs:
         cd docs/
         poetry run make clean
         poetry run make html
-    - name: Disable Jekyll builds
-      # if: github.ref == 'refs/heads/main'
-      run: touch docs/build/html/.nojekyll
-    - name: Install and configure dependencies
-      # if: github.ref == 'refs/heads/main'
-      run: |
-        npm install -g --silent gh-pages@2.0.1
-        git config user.email "cbryant@berkeley.edu"
-        git config user.name "chrismbryant"
-    - name: Add SSH Key
-      # if: github.ref == 'refs/heads/main'
-      uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    # - name: Disable Jekyll builds
+    #   # if: github.ref == 'refs/heads/main'
+    #   run: touch docs/build/html/.nojekyll
+    # - name: Install and configure dependencies
+    #   # if: github.ref == 'refs/heads/main'
+    #   run: |
+    #     npm install -g --silent gh-pages@2.0.1
+    #     git config user.email "cbryant@berkeley.edu"
+    #     git config user.name "chrismbryant"
+    # - name: Add SSH Key
+    #   # if: github.ref == 'refs/heads/main'
+    #   uses: webfactory/ssh-agent@v0.7.0
+    #   with:
+    #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
     - name: Deploy docs to gh-pages branch
       # if: github.ref == 'refs/heads/main'
-      run: |
-        gh-pages --dotfiles --message "[skip ci] Updates" --dist docs/build/html
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_branch: gh-pages
+        publish_dir: docs/build/html
