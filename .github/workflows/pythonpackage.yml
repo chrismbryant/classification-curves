@@ -87,7 +87,7 @@ jobs:
   #       poetry run make html
 
   deploy-docs:
-    needs: build
+    # needs: build
     runs-on: ubuntu-latest
     # if: github.ref == 'refs/heads/main'
     steps:
