@@ -77,8 +77,8 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_plot(
         self,
-        x: np.array,
-        y: np.array,
+        x: np.ndarray,
+        y: np.ndarray,
         cmap: str,
         dpi: Optional[int],
         color_by: str,
@@ -136,8 +136,8 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_bootstrap_plot(
         self,
-        x: np.array,
-        y: np.array,
+        x: np.ndarray,
+        y: np.ndarray,
         cmap: str,
         dpi: Optional[int],
         color_by: str,

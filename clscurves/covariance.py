@@ -26,7 +26,7 @@ class CovarianceEllipseGenerator:
     >>> ceg.add_ellipse_center(ax)
     """
 
-    def __init__(self, data: np.array):
+    def __init__(self, data: np.ndarray):
 
         assert data.shape[0] == 2, f"Data must be of shape 2xM, not {data.shape}."
 

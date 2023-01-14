@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -199,7 +199,7 @@ class MetricsGenerator(
             if self.null_fill_methods is not None:
                 self.compute_metrics_with_unk()
 
-    def _collect_syw(self) -> Dict[str, np.array]:
+    def _collect_syw(self) -> Dict[str, np.ndarray]:
         """
         Collect scores (s), labels (y), and weights (w) from a Pandas
         prediction DataFrame into 3 separate NumPy arrays. Convert all None
@@ -230,7 +230,7 @@ class MetricsGenerator(
 
         return syw
 
-    def _make_bootstraps(self, arrays: Dict[str, np.array]) -> Dict[str, np.array]:
+    def _make_bootstraps(self, arrays: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         """
         Construct matched bootstrap samples for all the arrays in an input
         dictionary if the number of bootstrap samples is set to a value greater
@@ -250,7 +250,7 @@ class MetricsGenerator(
 
         return arrays
 
-    def _get_thresholds(self, scores: np.array) -> np.array:
+    def _get_thresholds(self, scores: np.ndarray) -> np.ndarray:
         """
         Given an array of scores, create an ordered list of threshold values
         which includes:
@@ -289,8 +289,8 @@ class MetricsGenerator(
         return thresholds
 
     def _compute_pos_neg_dict(
-        self, labels: np.array, weights: np.array
-    ) -> Dict[str, np.array]:
+        self, labels: np.ndarray, weights: np.ndarray
+    ) -> Dict[str, np.ndarray]:
         """
         Compute number of positive-, negative-, and un-labeled examples,
         and the total weighted amount covered by each label type.
@@ -322,11 +322,11 @@ class MetricsGenerator(
 
     def _compute_tp_fp_dict(
         self,
-        scores: np.array,
-        labels: np.array,
-        weights: np.array,
-        thresholds: np.array,
-    ) -> Dict[str, np.array]:
+        scores: np.ndarray,
+        labels: np.ndarray,
+        weights: np.ndarray,
+        thresholds: np.ndarray,
+    ) -> Dict[str, np.ndarray]:
         """
         Compute unweighted and weighted TP and FP arrays, given input arrays of
         model scores, data labels, data weights, and threshold values. Also
@@ -391,10 +391,10 @@ class MetricsGenerator(
 
         # Transform lists to arrays
         tp_fp_dict = {
-            "tp": np.array(tp),
-            "fp": np.array(fp) * self.imbalance_multiplier,
-            "tp_w": np.array(tp_w),
-            "fp_w": np.array(fp_w) * self.imbalance_multiplier,
+            "tp": np.ndarray(tp),
+            "fp": np.ndarray(fp) * self.imbalance_multiplier,
+            "tp_w": np.ndarray(tp_w),
+            "fp_w": np.ndarray(fp_w) * self.imbalance_multiplier,
         }
 
         # Account for unknown labels
@@ -405,8 +405,8 @@ class MetricsGenerator(
         return tp_fp_dict
 
     def _compute_tn_fn_dict(
-        self, tp_fp_dict: Dict[str, np.array], pos_neg_dict: Dict[str, np.array]
-    ) -> Dict[str, np.array]:
+        self, tp_fp_dict: Dict[str, np.ndarray], pos_neg_dict: Dict[str, np.ndarray]
+    ) -> Dict[str, np.ndarray]:
         """
         Compute complementary TN and FN metrics for given TP and FP metrics.
         """
@@ -431,11 +431,11 @@ class MetricsGenerator(
 
     def _compute_confusion_dict(
         self,
-        scores: np.array,
-        labels: np.array,
-        weights: np.array,
-        thresholds: np.array,
-    ) -> Dict[str, np.array]:
+        scores: np.ndarray,
+        labels: np.ndarray,
+        weights: np.ndarray,
+        thresholds: np.ndarray,
+    ) -> Dict[str, np.ndarray]:
         """
         Compute all aspects of the unweighted and weighted confusion matrix,
         given input arrays of model scores, data labels, data weights, and
@@ -451,8 +451,8 @@ class MetricsGenerator(
 
     @staticmethod
     def _compute_metrics_dict(
-        confusion_dict: Dict[str, np.array]
-    ) -> Dict[str, np.array]:
+        confusion_dict: Dict[str, np.ndarray]
+    ) -> Dict[str, np.ndarray]:
         """
         Compute performance metrics from TP and FP values, making sure to
         account for divide-by-zero cases in the precision values.
@@ -467,7 +467,9 @@ class MetricsGenerator(
         recall = d["tp"] / d["pos"]
         precision = np.nan_to_num(d["tp"] / (d["tp"] + d["fp"]))
 
-        def compute_gain(metric: np.array, imbal: float):
+        def compute_gain(
+            metric: np.ndarray, imbal: Union[np.ndarray, float]
+        ) -> np.ndarray:
             return np.clip((metric - imbal) / ((1 - imbal) * metric), a_min=0, a_max=1)
 
         recall_gain = compute_gain(recall, imb)
@@ -489,8 +491,8 @@ class MetricsGenerator(
 
     @staticmethod
     def _compute_area_metrics_dict(
-        metrics_dict: Dict[str, np.array]
-    ) -> Dict[str, np.array]:
+        metrics_dict: Dict[str, np.ndarray]
+    ) -> Dict[str, np.ndarray]:
         """
         Compute single-number area-under-the-curve metrics for all the computed
         performance curves.
@@ -565,9 +567,9 @@ class MetricsGenerator(
 
     def compute_metrics(
         self,
-        scores: np.array,
-        labels: np.array,
-        weights: np.array,
+        scores: np.ndarray,
+        labels: np.ndarray,
+        weights: np.ndarray,
         return_dict: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Compute the classification curve metrics values.

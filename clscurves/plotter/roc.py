@@ -23,7 +23,7 @@ class ROCPlotter(MetricsPlotter):
         cbar_rng: Optional[List[float]] = None,
         cbar_label: Optional[str] = None,
         grid: bool = True,
-        dpi: int = None,
+        dpi: Optional[int] = None,
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
