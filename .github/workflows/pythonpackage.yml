@@ -81,28 +81,18 @@ jobs:
     #                  build docs
     #----------------------------------------------
     - name: Build docs
+      if: github.ref == 'refs/heads/main'
       run: |
         cd docs/
         poetry run make clean
         poetry run make html
-
-  deploy-docs:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Disable Jekyll builds
-      run: touch docs/build/html/.nojekyll
-    - name: Install and configure dependencies
-      run: |
-        npm install -g --silent gh-pages@2.0.1
-        git config user.email "cbryant@berkeley.edu"
-        git config user.name "chrismbryant"
-    - name: Add SSH Key
-      uses: ssh-keys/add-ssh-key@v1
-      with:
-        ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+    #----------------------------------------------
+    #                 deploy docs
+    #----------------------------------------------
     - name: Deploy docs to gh-pages branch
-      run: gh-pages --dotfiles --message "[skip ci] Updates" --dist docs/build/html
+      if: github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_branch: gh-pages
+        publish_dir: docs/build/html
