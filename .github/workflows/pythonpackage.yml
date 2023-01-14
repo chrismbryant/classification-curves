@@ -39,69 +39,58 @@ jobs:
       with:
         path: ~/.cache/pypoetry/virtualenvs
         key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
-  #   #----------------------------------------------
-  #   # install dependencies if cache does not exist
-  #   #----------------------------------------------
-  #   - name: Install dependencies
-  #     if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-  #     run: |
-  #       poetry install
-  #   #----------------------------------------------
-  #   #                  run linters
-  #   #----------------------------------------------
-  #   - name: Lint with flake8
-  #     run: |
-  #       poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-  #       poetry run flake8 . --count --max-complexity=10 --max-line-length=127 --ignore=E203,W503 --statistics
-  #   - name: Lint with mypy
-  #     run: |
-  #       poetry run mypy clscurves --ignore-missing-imports --allow-redefinition
-  #   #----------------------------------------------
-  #   #                run unit tests
-  #   #----------------------------------------------
-  #   - name: Run tests
-  #     if: (! startsWith(github.event.ref, 'refs/tags'))
-  #     run: |
-  #       poetry run pytest
-  #   #----------------------------------------------
-  #   #         build and publish (only tagged)
-  #   #----------------------------------------------
-  #   - name: Build package
-  #     if: startsWith(github.event.ref, 'refs/tags')
-  #     run: |
-  #       rm -f dist/*
-  #       poetry build
-  #   - name: Publish package
-  #     if: startsWith(github.event.ref, 'refs/tags')
-  #     env: 
-  #       POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
-  #     run: |
-  #       poetry publish
+    #----------------------------------------------
+    # install dependencies if cache does not exist
+    #----------------------------------------------
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: |
+        poetry install
+    #----------------------------------------------
+    #                  run linters
+    #----------------------------------------------
+    - name: Lint with flake8
+      run: |
+        poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        poetry run flake8 . --count --max-complexity=10 --max-line-length=127 --ignore=E203,W503 --statistics
+    - name: Lint with mypy
+      run: |
+        poetry run mypy clscurves --ignore-missing-imports --allow-redefinition
+    #----------------------------------------------
+    #                run unit tests
+    #----------------------------------------------
+    - name: Run tests
+      if: (! startsWith(github.event.ref, 'refs/tags'))
+      run: |
+        poetry run pytest
+    #----------------------------------------------
+    #         build and publish (only tagged)
+    #----------------------------------------------
+    - name: Build package
+      if: startsWith(github.event.ref, 'refs/tags')
+      run: |
+        rm -f dist/*
+        poetry build
+    - name: Publish package
+      if: startsWith(github.event.ref, 'refs/tags')
+      env: 
+        POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
+      run: |
+        poetry publish
     #----------------------------------------------
     #                  build docs
     #----------------------------------------------
     - name: Build docs
-      # if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main'
       run: |
         cd docs/
         poetry run make clean
         poetry run make html
-    # - name: Disable Jekyll builds
-    #   # if: github.ref == 'refs/heads/main'
-    #   run: touch docs/build/html/.nojekyll
-    # - name: Install and configure dependencies
-    #   # if: github.ref == 'refs/heads/main'
-    #   run: |
-    #     npm install -g --silent gh-pages@2.0.1
-    #     git config user.email "cbryant@berkeley.edu"
-    #     git config user.name "chrismbryant"
-    # - name: Add SSH Key
-    #   # if: github.ref == 'refs/heads/main'
-    #   uses: webfactory/ssh-agent@v0.7.0
-    #   with:
-    #     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+    #----------------------------------------------
+    #                 deploy docs
+    #----------------------------------------------
     - name: Deploy docs to gh-pages branch
-      # if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main'
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
