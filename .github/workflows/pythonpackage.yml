@@ -30,15 +30,15 @@ jobs:
     - name: Validate lock file
       run: |
         poetry lock --check
-  #   #----------------------------------------------
-  #   #       load cached venv if cache exists
-  #   #----------------------------------------------
-  #   - name: Load cached venv
-  #     id: cached-poetry-dependencies
-  #     uses: actions/cache@v2
-  #     with:
-  #       path: ~/.cache/pypoetry/virtualenvs
-  #       key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
+    #----------------------------------------------
+    #       load cached venv if cache exists
+    #----------------------------------------------
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pypoetry/virtualenvs
+        key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
   #   #----------------------------------------------
   #   # install dependencies if cache does not exist
   #   #----------------------------------------------
