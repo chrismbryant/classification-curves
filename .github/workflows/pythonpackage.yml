@@ -64,13 +64,15 @@ jobs:
       run: |
         poetry run pytest
     #----------------------------------------------
-    #               build and publish
+    #         build and publish (only tagged)
     #----------------------------------------------
     - name: Build package
+      if: startsWith(github.event.ref, 'refs/tags')
       run: |
         rm -f dist/*
         poetry build
     - name: Publish package
+      if: startsWith(github.event.ref, 'refs/tags')
       env: 
         POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
       run: |
