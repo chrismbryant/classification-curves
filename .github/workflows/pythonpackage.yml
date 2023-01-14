@@ -102,4 +102,10 @@ jobs:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
     - name: Deploy docs to gh-pages branch
       # if: github.ref == 'refs/heads/main'
-      run: gh-pages --dotfiles --message "[skip ci] Updates" --dist docs/build/html
+      run: |
+        echo "Deploying docs to gh-pages branch"
+        echo ${{ github.ref }}
+        echo ${{ github.repository }}
+        echo ${{ github.head_ref }}
+        gh-pages --dist docs/build/html --branch gh-pages --repo
+        gh-pages --dotfiles --message "[skip ci] Updates" --dist docs/build/html
