@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
 import numpy as np
@@ -15,20 +15,23 @@ class MetricsPlotter(MetricsAliases):
     curve metrics plot, making a bootstrapped plot, and adding a confidence
     ellipse to a specified operating point.
     """
+
     def __init__(
-            self,
-            metrics_dict: Dict[str, Any],
-            score_is_probability: bool):
+        self,
+        metrics_dict: Dict[str, Any],
+        score_is_probability: bool,
+    ) -> None:
         self.metrics_dict = metrics_dict
         self.score_is_probability = score_is_probability
 
     def _add_op_ellipse(
-            self,
-            op_value: float,
-            x_key: str,
-            y_key: str,
-            ax: plt.axes,
-            thresh_key: str = "thresh"):
+        self,
+        op_value: float,
+        x_key: str,
+        y_key: str,
+        ax: plt.axes,
+        thresh_key: str = "thresh",
+    ) -> None:
         """A helper function to add a confidence ellipse to an metrics plot
         given a threshold operating value.
 
@@ -51,17 +54,18 @@ class MetricsPlotter(MetricsAliases):
         size = data.shape[0]
 
         # Find the index of the first entry at or above the operating threshold
-        op_index = size - np.sum(
-            np.cumsum(np.diff(data, axis=0), axis=0), axis=0)
+        op_index = size - np.sum(np.cumsum(np.diff(data, axis=0), axis=0), axis=0)
 
         # Find number of points to plot
         num_points = self.metrics_dict[y_key].shape[1]
 
         # Get x-y coordinates for each bootstrapped operating point
-        op_data = np.array([
-            self.metrics_dict[x_key][op_index, np.arange(num_points)],
-            self.metrics_dict[y_key][op_index, np.arange(num_points)]
-        ])
+        op_data = np.array(
+            [
+                self.metrics_dict[x_key][op_index, np.arange(num_points)],
+                self.metrics_dict[y_key][op_index, np.arange(num_points)],
+            ]
+        )
 
         # Compute covariance ellipse and add to ax
         ceg = CovarianceEllipseGenerator(op_data)
@@ -69,26 +73,21 @@ class MetricsPlotter(MetricsAliases):
         ceg.add_ellipse_center(ax=ax)
 
         # Add individual operating points
-        ax.scatter(
-            x=op_data[0],
-            y=op_data[1],
-            s=2,
-            c="black",
-            alpha=0.7,
-            marker=".")
+        ax.scatter(x=op_data[0], y=op_data[1], s=2, c="black", alpha=0.7, marker=".")
 
     def _make_plot(
-            self,
-            x: np.array,
-            y: np.array,
-            cmap: str,
-            dpi: int,
-            color_by: str,
-            cbar_rng: List[float],
-            cbar_label: str,
-            grid: bool,
-            fig: Optional[plt.figure] = None,
-            ax: Optional[plt.axes] = None) -> Tuple[plt.figure, plt.axes]:
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        cmap: str,
+        dpi: Optional[int],
+        color_by: str,
+        cbar_rng: Optional[List[float]],
+        cbar_label: Optional[str],
+        grid: bool,
+        fig: Optional[plt.figure] = None,
+        ax: Optional[plt.axes] = None,
+    ) -> Tuple[plt.figure, plt.axes]:
         """A helper function to create a base Matplotlib scatter plot figure
         for metrics-related plotting.
         """
@@ -111,9 +110,10 @@ class MetricsPlotter(MetricsAliases):
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
-        cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))
-        default_cbar_label = self.cbar_dict[
-            color_by] if color_by in self.cbar_dict else "Value"
+        cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))  # type: ignore
+        default_cbar_label = (
+            self.cbar_dict[color_by] if color_by in self.cbar_dict else "Value"
+        )
         cbar_label = default_cbar_label if cbar_label is None else cbar_label
         cbar.set_label(cbar_label)
 
@@ -129,22 +129,24 @@ class MetricsPlotter(MetricsAliases):
             vmax=vmax,
             marker=".",
             edgecolors="none",
-            zorder=int(1E4))
+            zorder=int(1e4),
+        )
 
         return fig, ax
 
     def _make_bootstrap_plot(
-            self,
-            x: np.array,
-            y: np.array,
-            cmap: str,
-            dpi: int,
-            color_by: str,
-            cbar_rng: List[float],
-            cbar_label: str,
-            grid: bool,
-            alpha: float,
-            bootstrap_color: str) -> Tuple[plt.figure, plt.axes]:
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        cmap: str,
+        dpi: Optional[int],
+        color_by: str,
+        cbar_rng: Optional[List[float]],
+        cbar_label: Optional[str],
+        grid: bool,
+        alpha: float,
+        bootstrap_color: str,
+    ) -> Tuple[plt.figure, plt.axes]:
         """A helper function to add faint bootstrapped reference curves to an
         metrics plot to visualize the confidence we have in the main metrics
         curve.
@@ -168,19 +170,12 @@ class MetricsPlotter(MetricsAliases):
                 y_boot[:, i],
                 alpha=alpha,
                 color=bootstrap_color,
-                linewidth=1)
+                linewidth=1,
+            )
 
         # Plot main colored curve (scatter plot) with color bar
         fig, ax = self._make_plot(
-            x_main,
-            y_main,
-            cmap,
-            dpi,
-            color_by,
-            cbar_rng,
-            cbar_label,
-            grid,
-            fig,
-            ax)
+            x_main, y_main, cmap, dpi, color_by, cbar_rng, cbar_label, grid, fig, ax
+        )
 
         return fig, ax

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -8,35 +8,36 @@ from clscurves.plotter.plotter import MetricsPlotter
 
 
 class DistPlotter(MetricsPlotter):
-
     def __init__(
-            self,
-            metrics_dict: Dict[str, Any],
-            score_is_probability: bool,
-            reverse_thresh: bool):
+        self,
+        metrics_dict: Dict[str, Any],
+        score_is_probability: bool,
+        reverse_thresh: bool,
+    ) -> None:
         super().__init__(metrics_dict, score_is_probability)
         self.reverse_thresh = reverse_thresh
 
-    def plot_dist(
-            self,
-            weighted: bool = False,
-            label: Optional[Union[str, int]] = "all",
-            kind: str = "CDF",
-            kernel_size: float = 10,
-            log_scale: bool = False,
-            title: Optional[str] = None,
-            cmap: str = "rainbow",
-            color_by: str = "tpr",
-            cbar_rng: Optional[List[float]] = None,
-            cbar_label: Optional[str] = None,
-            grid: bool = True,
-            x_rng: Optional[List[float]] = None,
-            y_rng: Optional[List[float]] = None,
-            dpi: Optional[int] = None,
-            bootstrapped: bool = False,
-            bootstrap_alpha: float = 0.15,
-            bootstrap_color: str = "black",
-            return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
+    def plot_dist(  # noqa: C901
+        self,
+        weighted: bool = False,
+        label: Optional[Union[str, int]] = "all",
+        kind: str = "CDF",
+        kernel_size: float = 10,
+        log_scale: bool = False,
+        title: Optional[str] = None,
+        cmap: str = "rainbow",
+        color_by: str = "tpr",
+        cbar_rng: Optional[List[float]] = None,
+        cbar_label: Optional[str] = None,
+        grid: bool = True,
+        x_rng: Optional[List[float]] = None,
+        y_rng: Optional[List[float]] = None,
+        dpi: Optional[int] = None,
+        bootstrapped: bool = False,
+        bootstrap_alpha: float = 0.15,
+        bootstrap_color: str = "black",
+        return_fig: bool = False,
+    ) -> Optional[Tuple[plt.figure, plt.axes]]:
         """Plot the data distribution.
 
         This plots either the CDF (Cumulative Distribution Function) or PDF
@@ -100,16 +101,15 @@ class DistPlotter(MetricsPlotter):
         Optional[Tuple[plt.figure, plt.axes]]
             The plot's figure and axis object.
         """
-        assert label in ["all", 0, 1, None], \
-            "`label` must be in [\"all\", 0, 1, None]"
+        assert label in ["all", 0, 1, None], '`label` must be in ["all", 0, 1, None]'
 
         kind = kind.lower()
-        assert kind in ["cdf", "pdf"], \
-            "`kind` must be \"cdf\" or \"pdf\""
+        assert kind in ["cdf", "pdf"], '`kind` must be "cdf" or "pdf"'
 
         # Specify which values to plot in X and Y
         x = self.metrics_dict["thresh"] * np.ones(
-            1 + self.metrics_dict["num_bootstrap_samples"])
+            1 + self.metrics_dict["num_bootstrap_samples"]
+        )
 
         # Compute CDF
         _w = "_w" if weighted else ""
@@ -134,25 +134,30 @@ class DistPlotter(MetricsPlotter):
         dx = np.diff(x, axis=0)
         zeros = np.zeros([1, dy.shape[1]])
         pdf = np.nan_to_num(
-            np.concatenate([zeros, dy], axis=0) /
-            np.concatenate([zeros, dx], axis=0)
+            np.concatenate([zeros, dy], axis=0) / np.concatenate([zeros, dx], axis=0)
         )
 
         # Smooth y if it's a PDF
-        y = cdf if kind == "cdf" else gaussian_filter1d(
-            pdf,
-            kernel_size,
-            axis=0)
+        y = cdf if kind == "cdf" else gaussian_filter1d(pdf, kernel_size, axis=0)
 
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng,
-                cbar_label, grid)
+                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label, grid
+            )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x, y, cmap, dpi, color_by, cbar_rng, cbar_label,
-                grid, bootstrap_alpha, bootstrap_color)
+                x,
+                y,
+                cmap,
+                dpi,
+                color_by,
+                cbar_rng,
+                cbar_label,
+                grid,
+                bootstrap_alpha,
+                bootstrap_color,
+            )
 
         # Change x-axis range
         if x_rng:
@@ -176,12 +181,14 @@ class DistPlotter(MetricsPlotter):
         # Set labels
         weight_string = "Weighted " if weighted else ""
         label_string = f": Label = {label}" if label in [0, 1, None] else ""
-        default_title = f"{weight_string}CDF{label_string}" if kind == "cdf" \
+        default_title = (
+            f"{weight_string}CDF{label_string}"
+            if kind == "cdf"
             else f"{weight_string}PDF{label_string}"
+        )
         title = default_title if title is None else title
         ax.set_xlabel("Score")
-        ax.set_ylabel(
-            "Cumulative Distribution" if kind == "cdf" else "Density")
+        ax.set_ylabel("Cumulative Distribution" if kind == "cdf" else "Density")
         ax.set_title(title)
 
         if return_fig:
@@ -191,6 +198,8 @@ class DistPlotter(MetricsPlotter):
             # Display and close plot
             plt.show()
             plt.close()
+
+        return None
 
     def plot_pdf(self, **kwargs) -> Optional[Tuple[plt.figure, plt.axes]]:
         return self.plot_dist(kind="pdf", **kwargs)

@@ -1,0 +1,108 @@
+name: Python package
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    #----------------------------------------------
+    #       check-out repo and set-up python
+    #----------------------------------------------
+    - name: Check out repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.8
+    #----------------------------------------------
+    #         install & configure poetry
+    #----------------------------------------------
+    - name: Install and configure Poetry
+      env:
+        read_secret: ${{ secrets.READ_SECRET }}
+      run: |
+        python3 --version
+        curl -sSL https://install.python-poetry.org | python3 - --version 1.3.2
+        poetry self add "poetry-dynamic-versioning[plugin]==0.18.0"
+    - name: Validate lock file
+      run: |
+        poetry lock --check
+    #----------------------------------------------
+    #       load cached venv if cache exists
+    #----------------------------------------------
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pypoetry/virtualenvs
+        key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
+    #----------------------------------------------
+    # install dependencies if cache does not exist
+    #----------------------------------------------
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: |
+        poetry install
+    #----------------------------------------------
+    #                  run linters
+    #----------------------------------------------
+    - name: Lint with flake8
+      run: |
+        poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        poetry run flake8 . --count --max-complexity=10 --max-line-length=127 --ignore=E203,W503 --statistics
+    - name: Lint with mypy
+      run: |
+        poetry run mypy clscurves --ignore-missing-imports --allow-redefinition
+    #----------------------------------------------
+    #                run unit tests
+    #----------------------------------------------
+    - name: Run tests
+      if: (! startsWith(github.event.ref, 'refs/tags'))
+      run: |
+        poetry run pytest
+    #----------------------------------------------
+    #         build and publish (only tagged)
+    #----------------------------------------------
+    - name: Build package
+      if: startsWith(github.event.ref, 'refs/tags')
+      run: |
+        rm -f dist/*
+        poetry build
+    - name: Publish package
+      if: startsWith(github.event.ref, 'refs/tags')
+      env: 
+        POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
+      run: |
+        poetry publish
+    #----------------------------------------------
+    #                  build docs
+    #----------------------------------------------
+    - name: Build docs
+      run: |
+        cd docs/
+        poetry run make clean
+        poetry run make html
+
+  deploy-docs:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Disable Jekyll builds
+      run: touch docs/build/html/.nojekyll
+    - name: Install and configure dependencies
+      run: |
+        npm install -g --silent gh-pages@2.0.1
+        git config user.email "cbryant@berkeley.edu"
+        git config user.name "chrismbryant"
+    - name: Add SSH Key
+      uses: ssh-keys/add-ssh-key@v1
+      with:
+        ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+    - name: Deploy docs to gh-pages branch
+      run: gh-pages --dotfiles --message "[skip ci] Updates" --dist docs/build/html
