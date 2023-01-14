@@ -5,6 +5,7 @@ class MetricsAliases:
     ``metrics_dict`` that we might want use when coloring a classification
     curve plot.
     """
+
     cbar_dict = {
         "tp": "True Positive (TP) Count",
         "fp": "False Positive (FP) Count",
@@ -22,5 +23,5 @@ class MetricsAliases:
         "fpr_w": "Weighted FPR = FP/(FP + TN)",
         "frac": "Fraction Flagged",
         "frac_w": "Weighted Fraction Flagged",
-        "thresh": "Score Threshold Value"
+        "thresh": "Score Threshold Value",
     }

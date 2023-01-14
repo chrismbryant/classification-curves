@@ -1,5 +1,5 @@
 import warnings
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,13 +15,14 @@ from clscurves.plotter.roc import ROCPlotter
 
 
 class MetricsGenerator(
-        ROCPlotter,
-        PRPlotter,
-        PRGPlotter,
-        RFPlotter,
-        CostPlotter,
-        DistPlotter,
-        MetricsAliases):
+    ROCPlotter,
+    PRPlotter,
+    PRGPlotter,
+    RFPlotter,
+    CostPlotter,
+    DistPlotter,
+    MetricsAliases,
+):
     """A class to generate classification curve metrics.
 
     A class for computing Precision/Recall/Fraction metrics across a binary
@@ -32,21 +33,23 @@ class MetricsGenerator(
     labels and a column of scores (with an optional additional column of label
     weights).
     """
+
     def __init__(
-            self,
-            predictions_df: Optional[pd.DataFrame] = None,
-            n_thresh: int = 500,
-            max_num_examples: int = 100000,
-            label_column: str = "label",
-            score_column: str = "probability",
-            weight_column: Optional[str] = None,
-            score_is_probability: bool = True,
-            reverse_thresh: bool = False,
-            num_bootstrap_samples: int = 0,
-            imbalance_multiplier: float = 1,
-            null_prob_column: Optional[str] = None,
-            null_fill_methods: Optional[List[str]] = None,
-            seed: int = 1):
+        self,
+        predictions_df: Optional[pd.DataFrame] = None,
+        n_thresh: int = 500,
+        max_num_examples: int = 100000,
+        label_column: str = "label",
+        score_column: str = "probability",
+        weight_column: Optional[str] = None,
+        score_is_probability: bool = True,
+        reverse_thresh: bool = False,
+        num_bootstrap_samples: int = 0,
+        imbalance_multiplier: float = 1,
+        null_prob_column: Optional[str] = None,
+        null_fill_methods: Optional[List[str]] = None,
+        seed: int = 1,
+    ):
         """Instantiating this class computes all the metrics.
 
         PARAMETERS
@@ -160,15 +163,15 @@ class MetricsGenerator(
         self.null_fill_methods = null_fill_methods
         self.null_probabilities = None
         self.seed = seed
-        self.metrics_dict = {}
-        self.metrics_dict_imputed = {}
+        self.metrics_dict: Dict[str, Any] = {}
+        self.metrics_dict_imputed: Dict[str, Any] = {}
 
         # Set seed
         np.random.seed(self.seed)
 
-        assert self.null_fill_methods is None or all([
-            m in ["0", "1", "imb", "prob"] for m in self.null_fill_methods
-        ]), "Each null_fill_method must be in ['0', '1', 'imb', 'prob']."
+        assert self.null_fill_methods is None or all(
+            [m in ["0", "1", "imb", "prob"] for m in self.null_fill_methods]
+        ), "Each null_fill_method must be in ['0', '1', 'imb', 'prob']."
 
         if predictions_df is not None:
 
@@ -190,10 +193,7 @@ class MetricsGenerator(
                 self.null_probabilities = syw["p"]
 
             # Compute standard classification curve metrics
-            self.compute_metrics(
-                self.scores,
-                self.labels,
-                self.weights)
+            self.compute_metrics(self.scores, self.labels, self.weights)
 
             # Compute imputed-null classification curve metrics
             if self.null_fill_methods is not None:
@@ -207,30 +207,30 @@ class MetricsGenerator(
         """
         syw = dict()
 
-        syw["s"] = self.predictions_df[self.score_column] \
-            .to_numpy().astype(np.float32)
+        syw["s"] = self.predictions_df[self.score_column].to_numpy().astype(np.float32)
 
-        syw["y"] = self.predictions_df[self.label_column] \
-            .to_numpy().astype(np.float32)
+        syw["y"] = self.predictions_df[self.label_column].to_numpy().astype(np.float32)
 
         # Set weight column to 1 if not specified
         if self.weight_column is not None:
-            syw["w"] = self.predictions_df[self.weight_column] \
-                .to_numpy().astype(np.float32)
+            syw["w"] = (
+                self.predictions_df[self.weight_column].to_numpy().astype(np.float32)
+            )
         else:
-            syw["w"] = self.predictions_df[self.score_column] \
-                .to_numpy().astype(np.float32) * 0 + 1
+            syw["w"] = np.ones(
+                self.predictions_df[self.score_column].to_numpy().shape,
+                dtype=np.float32,
+            )
 
         # Only set p if the null prob column is specified
         if self.null_prob_column is not None:
-            syw["p"] = self.predictions_df[self.null_prob_column] \
-                .to_numpy().astype(np.float32)
+            syw["p"] = (
+                self.predictions_df[self.null_prob_column].to_numpy().astype(np.float32)
+            )
 
         return syw
 
-    def _make_bootstraps(
-            self,
-            arrays: Dict[str, np.array]) -> Dict[str, np.array]:
+    def _make_bootstraps(self, arrays: Dict[str, np.array]) -> Dict[str, np.array]:
         """
         Construct matched bootstrap samples for all the arrays in an input
         dictionary if the number of bootstrap samples is set to a value greater
@@ -239,10 +239,8 @@ class MetricsGenerator(
         """
         tot = len(arrays[list(arrays.keys())[0]])
         if self.num_bootstrap_samples > 0:
-            print(
-                f"Creating {self.num_bootstrap_samples} bootstrap samples...")
-            ix = np.random.choice(
-                np.arange(tot), (tot, self.num_bootstrap_samples))
+            print(f"Creating {self.num_bootstrap_samples} bootstrap samples...")
+            ix = np.random.choice(np.arange(tot), (tot, self.num_bootstrap_samples))
             arrays = {
                 key: np.concatenate([arr.reshape(tot, 1), arr[ix]], axis=1)
                 for key, arr in arrays.items()
@@ -264,24 +262,35 @@ class MetricsGenerator(
                 distribution.
         """
         num_examples = len(scores)
-        score_bounds = [0, 1] if self.score_is_probability else [min(scores), max(scores)] # noqa
+        score_bounds = (
+            [0, 1] if self.score_is_probability else [min(scores), max(scores)]
+        )  # noqa
         score_range = score_bounds[1] - score_bounds[0]
-        thresh_equal = score_bounds[0] + score_range * np.arange(self.N) / self.N # noqa
-        indices = np.ndarray.astype(np.arange(self.N) * num_examples / self.N, int) # noqa
-        thresholds = np.sort(np.unique(np.concatenate([
-            np.array([score_bounds[0]]),
-            np.sort(scores)[indices],
-            thresh_equal,
-            np.array([score_bounds[1]])
-        ])))
+        thresh_equal = (
+            score_bounds[0] + score_range * np.arange(self.N) / self.N
+        )  # noqa
+        indices = np.ndarray.astype(
+            np.arange(self.N) * num_examples / self.N, int
+        )  # noqa
+        thresholds = np.sort(
+            np.unique(
+                np.concatenate(
+                    [
+                        np.array([score_bounds[0]]),
+                        np.sort(scores)[indices],
+                        thresh_equal,
+                        np.array([score_bounds[1]]),
+                    ]
+                )
+            )
+        )
         thresholds = np.atleast_2d(thresholds).T
 
         return thresholds
 
     def _compute_pos_neg_dict(
-            self,
-            labels: np.array,
-            weights: np.array) -> Dict[str, np.array]:
+        self, labels: np.array, weights: np.array
+    ) -> Dict[str, np.array]:
         """
         Compute number of positive-, negative-, and un-labeled examples,
         and the total weighted amount covered by each label type.
@@ -289,9 +298,7 @@ class MetricsGenerator(
 
         # Print imbalance multiplier warning
         if self.imbalance_multiplier != 1:
-            print(
-                f"Artificial imbalance multiplier: {self.imbalance_multiplier}"
-            )
+            print(f"Artificial imbalance multiplier: {self.imbalance_multiplier}")
 
         # Alias input parameters
         y = labels
@@ -304,7 +311,7 @@ class MetricsGenerator(
             "unk": np.sum(np.isnan(y), axis=0),
             "pos_w": np.sum((y == 1) * w, axis=0),
             "neg_w": np.sum((y == 0) * w, axis=0) * self.imbalance_multiplier,
-            "unk_w": np.sum(np.isnan(y) * w, axis=0)
+            "unk_w": np.sum(np.isnan(y) * w, axis=0),
         }
 
         # Compute class imbalance
@@ -314,11 +321,12 @@ class MetricsGenerator(
         return pos_neg_dict
 
     def _compute_tp_fp_dict(
-            self,
-            scores: np.array,
-            labels: np.array,
-            weights: np.array,
-            thresholds: np.array) -> Dict[str, np.array]:
+        self,
+        scores: np.array,
+        labels: np.array,
+        weights: np.array,
+        thresholds: np.array,
+    ) -> Dict[str, np.array]:
         """
         Compute unweighted and weighted TP and FP arrays, given input arrays of
         model scores, data labels, data weights, and threshold values. Also
@@ -344,15 +352,23 @@ class MetricsGenerator(
         for t in thresholds:
 
             # Note: predictions shape = (num_examples, num_bootstrap_samples)
-            predictions = ((scores <= t) if self.reverse_thresh else (scores >= t)).astype(int) # noqa
-            tp_value = np.sum(np.logical_and(predictions == 1, labels == 1), axis=0).T # noqa
-            fp_value = np.sum(np.logical_and(predictions == 1, labels == 0), axis=0).T # noqa
+            predictions = (
+                (scores <= t) if self.reverse_thresh else (scores >= t)
+            ).astype(
+                int
+            )  # noqa
+            tp_value = np.sum(
+                np.logical_and(predictions == 1, labels == 1), axis=0
+            ).T  # noqa
+            fp_value = np.sum(
+                np.logical_and(predictions == 1, labels == 0), axis=0
+            ).T  # noqa
             tp_w_value = np.sum(
-                weights * np.logical_and(predictions == 1, labels == 1),
-                axis=0).T
+                weights * np.logical_and(predictions == 1, labels == 1), axis=0
+            ).T
             fp_w_value = np.sum(
-                weights * np.logical_and(predictions == 1, labels == 0),
-                axis=0).T
+                weights * np.logical_and(predictions == 1, labels == 0), axis=0
+            ).T
 
             tp.append(tp_value)
             fp.append(fp_value)
@@ -363,16 +379,12 @@ class MetricsGenerator(
             if self.labels_contain_null:
 
                 up_value = np.sum(
-                    np.logical_and(
-                        predictions == 1,
-                        np.isnan(labels)),
-                    axis=0).T
+                    np.logical_and(predictions == 1, np.isnan(labels)), axis=0
+                ).T
 
                 up_w_value = np.sum(
-                    weights * np.logical_and(
-                        predictions == 1,
-                        np.isnan(labels)),
-                    axis=0).T
+                    weights * np.logical_and(predictions == 1, np.isnan(labels)), axis=0
+                ).T
 
                 up.append(up_value)
                 up_w.append(up_w_value)
@@ -382,7 +394,7 @@ class MetricsGenerator(
             "tp": np.array(tp),
             "fp": np.array(fp) * self.imbalance_multiplier,
             "tp_w": np.array(tp_w),
-            "fp_w": np.array(fp_w) * self.imbalance_multiplier
+            "fp_w": np.array(fp_w) * self.imbalance_multiplier,
         }
 
         # Account for unknown labels
@@ -393,9 +405,8 @@ class MetricsGenerator(
         return tp_fp_dict
 
     def _compute_tn_fn_dict(
-            self,
-            tp_fp_dict: Dict[str, np.array],
-            pos_neg_dict: Dict[str, np.array]) -> Dict[str, np.array]:
+        self, tp_fp_dict: Dict[str, np.array], pos_neg_dict: Dict[str, np.array]
+    ) -> Dict[str, np.array]:
         """
         Compute complementary TN and FN metrics for given TP and FP metrics.
         """
@@ -408,7 +419,7 @@ class MetricsGenerator(
             "fn": d["pos"] - d["tp"],
             "tn": d["neg"] - d["fp"],
             "fn_w": d["pos_w"] - d["tp_w"],
-            "tn_w": d["neg_w"] - d["fp_w"]
+            "tn_w": d["neg_w"] - d["fp_w"],
         }
 
         # Compute complementary metrics for unknown labels
@@ -419,25 +430,29 @@ class MetricsGenerator(
         return tn_fn_dict
 
     def _compute_confusion_dict(
-            self,
-            scores: np.array,
-            labels: np.array,
-            weights: np.array,
-            thresholds: np.array) -> Dict[str, np.array]:
+        self,
+        scores: np.array,
+        labels: np.array,
+        weights: np.array,
+        thresholds: np.array,
+    ) -> Dict[str, np.array]:
         """
         Compute all aspects of the unweighted and weighted confusion matrix,
         given input arrays of model scores, data labels, data weights, and
         threshold values.
         """
         pos_neg_dict = self._compute_pos_neg_dict(labels, weights)
-        tp_fp_dict = self._compute_tp_fp_dict(scores, labels, weights, thresholds) # noqa
+        tp_fp_dict = self._compute_tp_fp_dict(
+            scores, labels, weights, thresholds
+        )  # noqa
         tn_fn_dict = self._compute_tn_fn_dict(tp_fp_dict, pos_neg_dict)
         confusion_dict = {**pos_neg_dict, **tp_fp_dict, **tn_fn_dict}
         return confusion_dict
 
     @staticmethod
     def _compute_metrics_dict(
-            confusion_dict: Dict[str, np.array]) -> Dict[str, np.array]:
+        confusion_dict: Dict[str, np.array]
+    ) -> Dict[str, np.array]:
         """
         Compute performance metrics from TP and FP values, making sure to
         account for divide-by-zero cases in the precision values.
@@ -453,8 +468,7 @@ class MetricsGenerator(
         precision = np.nan_to_num(d["tp"] / (d["tp"] + d["fp"]))
 
         def compute_gain(metric: np.array, imbal: float):
-            return np.clip(
-                (metric - imbal) / ((1 - imbal) * metric), a_min=0, a_max=1)
+            return np.clip((metric - imbal) / ((1 - imbal) * metric), a_min=0, a_max=1)
 
         recall_gain = compute_gain(recall, imb)
         precision_gain = compute_gain(precision, imb)
@@ -469,13 +483,14 @@ class MetricsGenerator(
             "precision": precision,
             "f1": np.nan_to_num(2 * precision * recall / (precision + recall)),
             "recall_gain": recall_gain,
-            "precision_gain": precision_gain
+            "precision_gain": precision_gain,
         }
         return metrics_dict
 
     @staticmethod
     def _compute_area_metrics_dict(
-            metrics_dict: Dict[str, np.array]) -> Dict[str, np.array]:
+        metrics_dict: Dict[str, np.array]
+    ) -> Dict[str, np.array]:
         """
         Compute single-number area-under-the-curve metrics for all the computed
         performance curves.
@@ -491,8 +506,7 @@ class MetricsGenerator(
             "roc_auc_w": np.abs(trapz(d["tpr_w"], d["fpr_w"], axis=0)),
             "pr_auc_w": np.abs(trapz(d["precision"], d["tpr_w"], axis=0)),
             "rf_auc_w": np.abs(trapz(d["tpr_w"], d["frac"], axis=0)),
-            "prg_auc": np.abs(
-                trapz(d["precision_gain"], d["recall_gain"], axis=0))
+            "prg_auc": np.abs(trapz(d["precision_gain"], d["recall_gain"], axis=0)),
         }
         return area_metrics_dict
 
@@ -511,7 +525,9 @@ class MetricsGenerator(
         labels = self.labels
         weights = self.weights
         imbalance = self.metrics_dict["imbalance"]
-        null_probs = self.null_probabilities if self.null_prob_column else self.scores # noqa
+        null_probs = (
+            self.null_probabilities if self.null_prob_column else self.scores
+        )  # noqa
 
         # Initialize empty dicts
         self.metrics_dict_imputed = {}
@@ -522,8 +538,12 @@ class MetricsGenerator(
 
         # Probabilistically generate labels according to probability values or
         # class imb.
-        labels_from_prob = (np.random.rand(*labels.shape) < null_probs).astype(int) # noqa
-        labels_from_imb = (np.random.rand(*labels.shape) < imbalance).astype(int) # noqa
+        labels_from_prob = (np.random.rand(*labels.shape) < null_probs).astype(
+            int
+        )  # noqa
+        labels_from_imb = (np.random.rand(*labels.shape) < imbalance).astype(
+            int
+        )  # noqa
 
         # Fill null labels according to fill method
         labels_filled["0"] = masked_labels.filled(0)
@@ -535,10 +555,8 @@ class MetricsGenerator(
         def compute_filled_metrics(fill_method):
             print(f"null ==> {fill_method}")
             self.metrics_dict_imputed[fill_method] = self.compute_metrics(
-                scores,
-                labels_filled[fill_method],
-                weights,
-                return_dict=True)
+                scores, labels_filled[fill_method], weights, return_dict=True
+            )
             print("")
 
         # Compute metrics for each null fill method
@@ -546,11 +564,12 @@ class MetricsGenerator(
             compute_filled_metrics(method)
 
     def compute_metrics(
-            self,
-            scores: np.array,
-            labels: np.array,
-            weights: np.array,
-            return_dict: bool = False) -> Optional[Dict[str, Any]]:
+        self,
+        scores: np.array,
+        labels: np.array,
+        weights: np.array,
+        return_dict: bool = False,
+    ) -> Optional[Dict[str, Any]]:
         """Compute the classification curve metrics values.
 
         Parameters
@@ -611,7 +630,8 @@ class MetricsGenerator(
 
         # Compute all metrics
         confusion_dict = self._compute_confusion_dict(
-            scores, labels, weights, self.thresholds)
+            scores, labels, weights, self.thresholds
+        )
         metrics_dict = self._compute_metrics_dict(confusion_dict)
         area_metrics_dict = self._compute_area_metrics_dict(metrics_dict)
 
@@ -621,7 +641,7 @@ class MetricsGenerator(
             **metrics_dict,
             **area_metrics_dict,
             "thresh": self.thresholds,
-            "num_bootstrap_samples": self.num_bootstrap_samples
+            "num_bootstrap_samples": self.num_bootstrap_samples,
         }
 
         # Extract single number values from any 1-element arrays
@@ -638,3 +658,5 @@ class MetricsGenerator(
             return metrics_dict
         else:
             self.metrics_dict = metrics_dict
+
+        return None

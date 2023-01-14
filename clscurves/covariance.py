@@ -1,7 +1,8 @@
 from typing import Dict, Optional
 
 import numpy as np
-from matplotlib import pyplot as plt, patches
+from matplotlib import patches
+from matplotlib import pyplot as plt
 
 
 class CovarianceEllipseGenerator:
@@ -24,15 +25,15 @@ class CovarianceEllipseGenerator:
     >>> ceg.create_ellipse_patch(conf = 0.95, ax = ax)
     >>> ceg.add_ellipse_center(ax)
     """
+
     def __init__(self, data: np.array):
 
-        assert data.shape[0] == 2, \
-            f"Data must be of shape 2xM, not {data.shape}."
+        assert data.shape[0] == 2, f"Data must be of shape 2xM, not {data.shape}."
 
         self.data = data
-        self.conf = None
-        self.ellipse_data = None
-        self.ellipse_patch = None
+        self.conf: float
+        self.ellipse_data: Dict[str, float]
+        self.ellipse_patch: patches.Ellipse
 
     def compute_cov_ellipse(self, conf: float = 0.95) -> Dict[str, float]:
         """Compute covariance ellipse geometry.
@@ -79,17 +80,18 @@ class CovarianceEllipseGenerator:
             "y_center": y_center,
             "width": width,
             "height": height,
-            "angle": angle
+            "angle": angle,
         }
 
         return self.ellipse_data
 
     def create_ellipse_patch(
-            self,
-            conf: float = 0.95,
-            color: str = "black",
-            alpha: float = 0.2,
-            ax: Optional[plt.axes] = None) -> patches.Ellipse:
+        self,
+        conf: float = 0.95,
+        color: str = "black",
+        alpha: float = 0.2,
+        ax: Optional[plt.axes] = None,
+    ) -> patches.Ellipse:
         """Create covariance ellipse Matplotlib patch.
 
         Create a Matplotlib ellipse patch for a specified confidence level.
@@ -129,7 +131,8 @@ class CovarianceEllipseGenerator:
             fill=True,
             alpha=alpha,
             zorder=5000,
-            color=color)
+            color=color,
+        )
 
         if ax:
             ax.add_patch(self.ellipse_patch)
@@ -155,4 +158,5 @@ class CovarianceEllipseGenerator:
             linewidth=0.5,
             zorder=10000,
             alpha=1,
-            s=20)
+            s=20,
+        )

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
 import numpy as np
@@ -8,47 +8,54 @@ from clscurves.plotter.plotter import MetricsPlotter
 
 
 class CostPlotter(MetricsPlotter):
-
     def __init__(
-            self,
-            metrics_dict: Dict[str, Any],
-            score_is_probability: bool):
+        self,
+        metrics_dict: Dict[str, Any],
+        score_is_probability: bool,
+    ) -> None:
         super().__init__(metrics_dict, score_is_probability)
 
     def compute_cost(
-            self,
-            fn_cost_multiplier=1,
-            fp_cost_multiplier=1,
-            use_weighted_fn=False,
-            use_weighted_fp=False):
+        self,
+        fn_cost_multiplier=1,
+        fp_cost_multiplier=1,
+        use_weighted_fn=False,
+        use_weighted_fp=False,
+    ) -> None:
 
-        fn = self.metrics_dict["fn_w"] if use_weighted_fn else self.metrics_dict["fn"] # noqa
-        fp = self.metrics_dict["fp_w"] if use_weighted_fp else self.metrics_dict["fp"] # noqa
+        fn = (
+            self.metrics_dict["fn_w"] if use_weighted_fn else self.metrics_dict["fn"]
+        )  # noqa
+        fp = (
+            self.metrics_dict["fp_w"] if use_weighted_fp else self.metrics_dict["fp"]
+        )  # noqa
 
         self.metrics_dict["fn_cost"] = fn_cost_multiplier * fn
         self.metrics_dict["fp_cost"] = fp_cost_multiplier * fp
-        self.metrics_dict["cost"] = self.metrics_dict["fn_cost"] + \
-            self.metrics_dict["fp_cost"]
+        self.metrics_dict["cost"] = (
+            self.metrics_dict["fn_cost"] + self.metrics_dict["fp_cost"]
+        )
 
-    def plot_cost(
-            self,
-            title: str = "Misclassification Cost",
-            cmap: str = "rainbow",
-            log_scale: bool = False,
-            x_axis: str = "thresh",
-            x_label: Optional[str] = None,
-            x_rng: Optional[List[float]] = None,
-            y_label: str = "Cost",
-            y_rng: Optional[List[float]] = None,
-            color_by: str = "frac",
-            cbar_rng: Optional[List[float]] = None,
-            cbar_label: Optional[str] = None,
-            grid: bool = True,
-            dpi: Optional[int] = None,
-            bootstrapped: bool = False,
-            bootstrap_alpha: float = 0.15,
-            bootstrap_color: str = "black",
-            return_fig: bool = False) -> Optional[Tuple[plt.figure, plt.axes]]:
+    def plot_cost(  # noqa: C901
+        self,
+        title: str = "Misclassification Cost",
+        cmap: str = "rainbow",
+        log_scale: bool = False,
+        x_axis: str = "thresh",
+        x_label: Optional[str] = None,
+        x_rng: Optional[List[float]] = None,
+        y_label: str = "Cost",
+        y_rng: Optional[List[float]] = None,
+        color_by: str = "frac",
+        cbar_rng: Optional[List[float]] = None,
+        cbar_label: Optional[str] = None,
+        grid: bool = True,
+        dpi: Optional[int] = None,
+        bootstrapped: bool = False,
+        bootstrap_alpha: float = 0.15,
+        bootstrap_color: str = "black",
+        return_fig: bool = False,
+    ) -> Optional[Tuple[plt.figure, plt.axes]]:
         """Plot the "Misclassification Cost" curve.
 
         Note: `compute_cost` must be run first to obtain cost values.
@@ -119,10 +126,8 @@ class CostPlotter(MetricsPlotter):
         if cbar_rng is not None:
             [vmin, vmax] = cbar_rng
         else:
-            vmin = 0.0 if color_by == "frac" else np.min(
-                self.metrics_dict[color_by])
-            vmax = 1.0 if color_by == "frac" else np.max(
-                self.metrics_dict[color_by])
+            vmin = 0.0 if color_by == "frac" else np.min(self.metrics_dict[color_by])
+            vmax = 1.0 if color_by == "frac" else np.max(self.metrics_dict[color_by])
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
@@ -146,20 +151,22 @@ class CostPlotter(MetricsPlotter):
             vmax=vmax,
             marker=".",
             edgecolors="none",
-            zorder=int(1E4))
+            zorder=int(1e4),
+        )
 
         # Plot faint bootstrapped curves
         if bootstrapped:
             x_boot = x[:, 1:] if x.shape[1] > 1 else x
             cost_boot = cost[:, 1:]
-            for i in range(self.num_bootstrap_samples):
+            for i in range(self.metrics_dict["num_bootstrap_samples"]):
                 x_vals = x_boot if x_boot.shape[1] == 1 else x_boot[:, i]
                 ax.plot(
                     np.log10(x_vals) if log_scale else x_vals,
                     cost_boot[:, i],
                     alpha=bootstrap_alpha,
                     color=bootstrap_color,
-                    linewidth=1)
+                    linewidth=1,
+                )
 
         # Set x limits
         if not log_scale and x_axis in [
@@ -168,7 +175,7 @@ class CostPlotter(MetricsPlotter):
             "tpr_w",
             "fpr_w",
             "frac",
-            "precision"
+            "precision",
         ]:
             ax.set_xlim(0, 1)
         if x_rng:
@@ -198,3 +205,5 @@ class CostPlotter(MetricsPlotter):
             # Display and close plot
             plt.show()
             plt.close()
+
+        return None
