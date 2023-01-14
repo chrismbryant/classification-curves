@@ -101,8 +101,8 @@ jobs:
         git config user.email "cbryant@berkeley.edu"
         git config user.name "chrismbryant"
     - name: Add SSH Key
-      uses: ssh-keys/add-ssh-key@v1
+      uses: webfactory/ssh-agent@v0.7.0
       with:
-        ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
     - name: Deploy docs to gh-pages branch
       run: gh-pages --dotfiles --message "[skip ci] Updates" --dist docs/build/html
