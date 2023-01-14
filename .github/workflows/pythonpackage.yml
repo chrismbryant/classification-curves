@@ -103,10 +103,4 @@ jobs:
     - name: Deploy docs to gh-pages branch
       # if: github.ref == 'refs/heads/main'
       run: |
-        echo "Deploying docs to gh-pages branch"
-        echo ${{ github.ref }}
-        echo ${{ github.repository }}
-        echo ${{ github.head_ref }}
-        git status
-        gh-pages --dist docs/build/html
         gh-pages --dotfiles --message "[skip ci] Updates" --dist docs/build/html
