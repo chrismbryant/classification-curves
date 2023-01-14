@@ -80,19 +80,15 @@ jobs:
     #----------------------------------------------
     #                  build docs
     #----------------------------------------------
+    - name: Exit if not main branch
+      if: github.ref != 'refs/heads/main'
+      run: |
+        exit 0
     - name: Build docs
       run: |
         cd docs/
         poetry run make clean
         poetry run make html
-
-  deploy-docs:
-    needs: build
-    runs-on: ubuntu-latest
-    # if: github.ref == 'refs/heads/main'
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
     - name: Disable Jekyll builds
       run: touch docs/build/html/.nojekyll
     - name: Install and configure dependencies
