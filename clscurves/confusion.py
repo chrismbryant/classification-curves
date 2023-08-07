@@ -1,7 +1,8 @@
 import itertools
 import logging
+from dataclasses import dataclass
 from multiprocessing import Pool, current_process
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -9,12 +10,44 @@ import psutil
 from scipy.integrate import trapz
 from typing_extensions import Literal
 
+from clscurves.config import MetricsAliases
+from clscurves.plotter.cost import CostPlotter
+from clscurves.plotter.dist import DistPlotter
+from clscurves.plotter.pr import PRPlotter
+from clscurves.plotter.prg import PRGPlotter
+from clscurves.plotter.rf import RFPlotter
+from clscurves.plotter.roc import ROCPlotter
+
 LOG = logging.getLogger(__name__)
 
 NullFillMethod = Literal["0", "1", "imb", "prob"]
 
 
-class MetricsGenerator:
+@dataclass
+class MetricsResult:
+    """A class to hold the results of a metrics computation.
+
+    Parameters
+    ----------
+    curves : pd.DataFrame
+        DataFrame containing metrics at each threshold.
+    scalars : pd.DataFrame
+        DataFrame containing scalar metrics which apply to the entire dataset.
+    """
+
+    curves: pd.DataFrame
+    scalars: pd.DataFrame
+
+
+class MetricsGenerator(
+    ROCPlotter,
+    PRPlotter,
+    PRGPlotter,
+    RFPlotter,
+    CostPlotter,
+    DistPlotter,
+    MetricsAliases,
+):
     def __init__(
         self,
         predictions_df: Optional[pd.DataFrame] = None,
@@ -105,7 +138,7 @@ class MetricsGenerator:
                     probability distribution, if provided.
             If a method is provided, once the default metrics DF is computed
             without imputing any null labels, then a new metrics DF will be
-            computed for each method and stored in a ``metrics_df_imputed``
+            computed for each method and stored in a ``curves_imputed``
             object. If not, only the default metrics DF will be computed.
         seed : int
             Random seed for bootstrapping.
@@ -141,9 +174,8 @@ class MetricsGenerator:
         self.seed = seed
         self.rng_ss = np.random.SeedSequence(self.seed)
 
-        # Metrics DF to be populated
-        self.metrics_df = pd.DataFrame()
-        self.scalars = pd.DataFrame()
+        # Metrics to be populated
+        self.metrics: MetricsResult
 
         # Print imbalance multiplier warning
         if self.imbalance_multiplier != 1:
@@ -156,13 +188,22 @@ class MetricsGenerator:
             )
 
         if predictions_df is not None:
-            self._compute_all_metrics(predictions_df)
+            self.compute_all_metrics(predictions_df)
 
-    def _compute_all_metrics(self, df: pd.DataFrame) -> None:
+    def compute_all_metrics(
+        self,
+        predictions_df: pd.DataFrame,
+        return_results: bool = False,
+    ) -> Optional[MetricsResult]:
         """Compute all metrics."""
 
+        # Keep only relevant columns
+        cols = [self.label_column, self.score_column]
+        if self.weight_column:
+            cols.append(self.weight_column)
+        df_sample = predictions_df[cols].copy()
+
         # Sample input data if too large
-        df_sample = df.copy()
         if len(df_sample) > self.max_num_examples:
             rng = np.random.default_rng(self.rng_ss)
             seed = int(rng.random() * 2**32)
@@ -180,28 +221,34 @@ class MetricsGenerator:
         )
 
         # Compute metrics
-        metrics_df = pd.DataFrame()
+        curves = pd.DataFrame()
         scalars = pd.DataFrame()
         num_workers = psutil.cpu_count()
         rngs = self.rng_ss.spawn(num_workers)
         with Pool(num_workers) as pool:
-            for _metrics_df, _scalars in pool.starmap(
-                self._compute_metrics,
+            for metrics in pool.starmap(
+                self.compute_metrics,
                 [(df_sample, *options, rngs) for options in all_options],
             ):
-                metrics_df = pd.concat([metrics_df, _metrics_df])
-                scalars = pd.concat([scalars, pd.DataFrame([_scalars])])
+                curves = pd.concat([curves, metrics.curves])
+                scalars = pd.concat([scalars, metrics.scalars])
+        metrics = MetricsResult(curves, scalars)
 
-        self.metrics_df = metrics_df
-        self.scalars = scalars
+        # Optional return
+        if return_results:
+            return metrics
 
-    def _compute_metrics(
+        self.metrics = metrics
+
+        return None
+
+    def compute_metrics(
         self,
-        df: pd.DataFrame,
+        predictions_df: pd.DataFrame,
         bootstrap_sample: Optional[int] = None,
         null_fill_method: Optional[NullFillMethod] = None,
         rngs: Optional[np.random.SeedSequence] = None,
-    ) -> Tuple[pd.DataFrame, Dict[str, float]]:
+    ) -> MetricsResult:
         """Compute metrics for a single bootstrap sample."""
 
         # Set random generator for bootstrap
@@ -217,12 +264,9 @@ class MetricsGenerator:
                 )
 
         # Make a bootstrap
-        _df = df
+        _df = predictions_df
         if bootstrap_sample is not None:
-            cols = [self.label_column, self.score_column]
-            if self.weight_column:
-                cols.append(self.weight_column)
-            _df = self._make_bootstrap(df[cols], rng)
+            _df = self._make_bootstrap(_df, rng)
 
         # Impute null labels
         labels = _df[self.label_column].values
@@ -235,7 +279,7 @@ class MetricsGenerator:
             )
 
         # Compute metrics
-        metrics_df, scalars = self._compute_metrics_df(
+        metrics = self._compute_metrics(
             scores=_df[self.score_column].values,
             labels=labels,
             weights=_df[self.weight_column].values if self.weight_column else None,
@@ -243,85 +287,44 @@ class MetricsGenerator:
         )
 
         # Attach metadata to output
-        metrics_df["bootstrap"] = bootstrap_sample
-        metrics_df["null_fill_method"] = null_fill_method
-        scalars["bootstrap"] = bootstrap_sample
-        scalars["null_fill_method"] = null_fill_method
+        metrics.curves["_bootstrap"] = bootstrap_sample
+        metrics.curves["_null_fill_method"] = null_fill_method
+        metrics.scalars["_bootstrap"] = bootstrap_sample
+        metrics.scalars["_null_fill_method"] = null_fill_method
 
-        return metrics_df, scalars
+        return metrics
 
-    def _make_bootstrap(
-        self,
-        df: pd.DataFrame,
-        rng: np.random.Generator = np.random.default_rng(),
-    ) -> pd.DataFrame:
-        """Make bootstrap sample.
-
-        Sample with replacement from the input DataFrame to create a bootstrap
-        sample of the same size as the input DataFrame.
-        """
-        return df.sample(
-            n=len(df),
-            replace=True,
-            random_state=np.random.RandomState(int(rng.random() * 2**32)),
-        )
-
-    def _fill_null_labels(
-        self,
-        labels: np.ndarray,
-        null_fill_method: NullFillMethod,
-        null_probs: Optional[np.ndarray] = None,
-        rng: np.random.Generator = np.random.default_rng(),
-    ) -> np.ndarray:
-        """Fill null labels according to the specified method.
-
-        Parameters
-        ----------
-        labels : np.ndarray
-            Array of labels, some of which may be null.
-        null_fill_method : NullFillMethod
-            Method to use when filling null labels.
-            * "0" -- fill unknown labels with 0.
-            * "1" -- fill unknown labels with 1.
-            * "imb" -- fill unknown labels with 0 or 1 probabilistically
-                according to the class imbalance of the known labels.
-            * "prob" -- fill unknown labels with 0 or 1 probabilistically
-                according to the probability-calibrated model score.
-        null_probs : Optional[np.ndarray]
-            Array of probabilities to use when filling null labels. Only
-            required if ``null_fill_method`` is "prob".
-        """
-        imbalance = (labels > 0).sum() / len(labels)
-        if null_fill_method == "0":
-            return np.where(labels == np.nan, 0, labels)
-        if null_fill_method == "1":
-            return np.where(labels == np.nan, 1, labels)
-        if null_fill_method == "imb":
-            labels_from_imb = (rng.rand(*labels.shape) < imbalance).astype(int)
-            return np.where(labels == np.nan, labels_from_imb, labels)
-        if null_fill_method == "prob":
-            if null_probs is None:
-                raise ValueError(
-                    "Must provide null_probs when using null_fill_method='prob'."
-                )
-            return np.where(
-                labels == np.nan,
-                (rng.rand(*labels.shape) < null_probs).astype(int),
-                labels,
-            )
-
-    def _compute_metrics_df(
+    def _compute_metrics(
         self,
         scores: np.ndarray,
         labels: np.ndarray,
         weights: Optional[np.ndarray] = None,
         reverse_thresh: bool = False,
-    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """Compute confusion matrix.
+    ) -> MetricsResult:
+        """Compute metrics.
 
         Parameters
         ----------
+        scores : np.ndarray
+            Array of scores.
+        labels : np.ndarray
+            Binary array of labels. If labels are real-valued, then all values
+            > 0 will be treated as positive examples, and all values <= 0 will
+            be treated as negative examples.
+        weights : Optional[np.ndarray]
+            Array of weights associated with each example.
+        reverse_thresh : bool
+            Boolean indicating whether the score threshold should be treated as
+            a lower bound on "positive" predictions (as is standard) or instead
+            as an upper bound. If ``True``, the threshold behavior will be
+            reversed from standard so that any prediction falling BELOW a score
+            threshold will be marked as positive, with all those falling above
+            the threshold marked as negative.
 
+        Returns
+        -------
+        MetricsResult
+            A class containing the computed metrics.
         """
 
         # Put arrays into DataFrame, treating scores as thresholds
@@ -418,15 +421,76 @@ class MetricsGenerator:
             "rf_auc_w": np.abs(trapz(df["recall_w"], df["frac_w"])),
             "prg_auc": np.abs(trapz(df["precision_gain"], df["recall_gain"])),
         }
+        scalars = pd.DataFrame([scalars])
 
-        return df, scalars
+        return MetricsResult(curves=df, scalars=scalars)
+
+    def _make_bootstrap(
+        self,
+        df: pd.DataFrame,
+        rng: np.random.Generator = np.random.default_rng(),
+    ) -> pd.DataFrame:
+        """Make bootstrap sample.
+
+        Sample with replacement from the input DataFrame to create a bootstrap
+        sample of the same size as the input DataFrame.
+        """
+        return df.sample(
+            n=len(df),
+            replace=True,
+            random_state=np.random.RandomState(int(rng.random() * 2**32)),
+        )
+
+    def _fill_null_labels(
+        self,
+        labels: np.ndarray,
+        null_fill_method: NullFillMethod,
+        null_probs: Optional[np.ndarray] = None,
+        rng: np.random.Generator = np.random.default_rng(),
+    ) -> np.ndarray:
+        """Fill null labels according to the specified method.
+
+        Parameters
+        ----------
+        labels : np.ndarray
+            Array of labels, some of which may be null.
+        null_fill_method : NullFillMethod
+            Method to use when filling null labels.
+            * "0" -- fill unknown labels with 0.
+            * "1" -- fill unknown labels with 1.
+            * "imb" -- fill unknown labels with 0 or 1 probabilistically
+                according to the class imbalance of the known labels.
+            * "prob" -- fill unknown labels with 0 or 1 probabilistically
+                according to the probability-calibrated model score.
+        null_probs : Optional[np.ndarray]
+            Array of probabilities to use when filling null labels. Only
+            required if ``null_fill_method`` is "prob".
+        """
+        imbalance = (labels > 0).sum() / len(labels)
+        if null_fill_method == "0":
+            return np.where(labels == np.nan, 0, labels)
+        if null_fill_method == "1":
+            return np.where(labels == np.nan, 1, labels)
+        if null_fill_method == "imb":
+            labels_from_imb = (rng.rand(*labels.shape) < imbalance).astype(int)
+            return np.where(labels == np.nan, labels_from_imb, labels)
+        if null_fill_method == "prob":
+            if null_probs is None:
+                raise ValueError(
+                    "Must provide null_probs when using null_fill_method='prob'."
+                )
+            return np.where(
+                labels == np.nan,
+                (rng.rand(*labels.shape) < null_probs).astype(int),
+                labels,
+            )
 
     @staticmethod
     def _compute_gain(
         metric: np.ndarray,
         imbalance: float,
     ) -> np.ndarray:
-        """Compute gain.
+        """Compute "gain".
 
         As defined in the "Precision-Recall-Gain" paper
         `here <https://papers.nips.cc/paper/2015/file/33e8075e9970de0cfea955afd464\
