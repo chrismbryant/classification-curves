@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from ..confusion import MetricsGenerator
+from .. import MetricsGenerator
 
 
 def test_compute_confusion_matrix() -> None:
