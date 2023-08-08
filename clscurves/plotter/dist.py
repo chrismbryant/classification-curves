@@ -1,26 +1,30 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.ndimage import gaussian_filter1d
+from typing_extensions import Literal
 
 from clscurves.plotter.plotter import MetricsPlotter
+from clscurves.utils import MetricsResult
+
+Label = Literal["all", 0, 1, None]
 
 
 class DistPlotter(MetricsPlotter):
     def __init__(
         self,
-        metrics_dict: Dict[str, Any],
+        metrics: MetricsResult,
         score_is_probability: bool,
         reverse_thresh: bool,
     ) -> None:
-        super().__init__(metrics_dict, score_is_probability)
+        super().__init__(metrics, score_is_probability)
         self.reverse_thresh = reverse_thresh
 
     def plot_dist(  # noqa: C901
         self,
         weighted: bool = False,
-        label: Optional[Union[str, int]] = "all",
+        label: Label = "all",  # noqa
         kind: str = "CDF",
         kernel_size: float = 10,
         log_scale: bool = False,
@@ -66,8 +70,8 @@ class DistPlotter(MetricsPlotter):
         cmap
             Colormap string specification.
         color_by
-            Name of key in metrics_dict that specifies which values to use when
-            coloring points along the PDF or CDF curve.
+            Name of key in metrics.curves that specifies which values to use
+            when coloring points along the PDF or CDF curve.
         cbar_rng
             Specify a color bar range of the form [min_value, max_value] to
             override the default range.
@@ -107,23 +111,24 @@ class DistPlotter(MetricsPlotter):
         assert kind in ["cdf", "pdf"], '`kind` must be "cdf" or "pdf"'
 
         # Specify which values to plot in X and Y
-        x = self.metrics_dict["thresh"] * np.ones(
-            1 + self.metrics_dict["num_bootstrap_samples"]
-        )
+        scalars = self.metrics.scalars.loc[lambda x: x["_bootstrap_sample"].isnull()]
+        curves = self.metrics.curves.loc[lambda x: x["_bootstrap_sample"].isnull()]
+        x = curves["thresh"]
 
         # Compute CDF
         _w = "_w" if weighted else ""
         if label == "all":
-            cdf = 1 - self.metrics_dict["frac" + _w]
+            cdf = 1 - curves[f"frac{_w}"]
         elif label == 1:
-            denom = self.metrics_dict["pos" + _w]
-            cdf = 1 - self.metrics_dict["tp" + _w] / denom
+            denom = (
+                scalars["tot_weight_pos"] if weighted else scalars["num_examples_pos"]
+            )
+            cdf = 1 - self.metrics.curves[f"tp{_w}"] / denom
         elif label == 0:
-            denom = self.metrics_dict["neg" + _w]
-            cdf = 1 - self.metrics_dict["fp" + _w] / denom
+            denom = self.metrics.curves[f"neg{_w}"]
+            cdf = 1 - self.metrics.curves[f"fp{_w}"] / denom
         else:
-            denom = self.metrics_dict["unk" + _w]
-            cdf = 1 - self.metrics_dict["up" + _w] / denom
+            raise NotImplementedError("TODO: Implement label=None case.")
 
         # Account for reversed-behavior thresholds
         if self.reverse_thresh:

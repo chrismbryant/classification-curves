@@ -1,11 +1,13 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import matplotlib
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 
 from clscurves.config import MetricsAliases
 from clscurves.covariance import CovarianceEllipseGenerator
+from clscurves.utils import MetricsResult
 
 
 class MetricsPlotter(MetricsAliases):
@@ -18,17 +20,17 @@ class MetricsPlotter(MetricsAliases):
 
     def __init__(
         self,
-        metrics_dict: Dict[str, Any],
+        metrics: MetricsResult,
         score_is_probability: bool,
     ) -> None:
-        self.metrics_dict = metrics_dict
+        self.metrics = metrics
         self.score_is_probability = score_is_probability
 
     def _add_op_ellipse(
         self,
         op_value: float,
-        x_key: str,
-        y_key: str,
+        x_col: str,
+        y_col: str,
         ax: plt.axes,
         thresh_key: str = "thresh",
     ) -> None:
@@ -39,33 +41,28 @@ class MetricsPlotter(MetricsAliases):
         ----------
         op_value
             Threshold operating value.
-        x_key
-            metrics_dict key used in plot x axis.
-        y_key
-            metrics_dict key used in plot y axis.
+        x_col
+            metrics.curves key used in plot x axis.
+        y_col
+            metrics.curves key used in plot y axis.
         ax
             Matplotlib axis object.
         thresh_key
-            metrics_dict key used for coloring (default: "thresh").
+            metrics.curves key used for coloring (default: "thresh").
         """
 
-        # Find all entries at or above the operating point threshold
-        data = self.metrics_dict[thresh_key] >= op_value
-        size = data.shape[0]
+        def find_op_point(df: pd.DataFrame) -> pd.Series:
+            """Find all entries at or above the operating point threshold."""
+            match = df[df[thresh_key] >= op_value]
+            if not match.empty:
+                return match.iloc[0]
+            return df.iloc[0]
 
-        # Find the index of the first entry at or above the operating threshold
-        op_index = size - np.sum(np.cumsum(np.diff(data, axis=0), axis=0), axis=0)
-
-        # Find number of points to plot
-        num_points = self.metrics_dict[y_key].shape[1]
-
-        # Get x-y coordinates for each bootstrapped operating point
-        op_data = np.array(
-            [
-                self.metrics_dict[x_key][op_index, np.arange(num_points)],
-                self.metrics_dict[y_key][op_index, np.arange(num_points)],
-            ]
+        # Get operating point coordinates for each bootstrapped sample
+        op_points = self.metrics.curves.groupby("_bootstrap_sample").apply(
+            find_op_point
         )
+        op_data = op_points[[x_col, y_col]].values.T
 
         # Compute covariance ellipse and add to ax
         ceg = CovarianceEllipseGenerator(op_data)
@@ -77,8 +74,8 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_plot(
         self,
-        x: np.ndarray,
-        y: np.ndarray,
+        x_col: str,
+        y_col: str,
         cmap: str,
         dpi: Optional[int],
         color_by: str,
@@ -92,6 +89,9 @@ class MetricsPlotter(MetricsAliases):
         for metrics-related plotting.
         """
 
+        # Get non-bootstrapped data
+        curves = self.metrics.curves.loc[lambda x: x["_bootstrap_sample"].isnull()]
+
         # Create figure
         if not ax:
             fig = plt.figure(figsize=(10, 7), dpi=dpi)
@@ -101,12 +101,13 @@ class MetricsPlotter(MetricsAliases):
             ax.set_ylim(0, 1)
 
         # Make Color Bar
+        color = curves[color_by]
         if cbar_rng is not None:
             [vmin, vmax] = cbar_rng
         else:
             sip = self.score_is_probability or color_by == "frac"
-            vmin = 0.0 if sip else np.min(self.metrics_dict[color_by])
-            vmax = 1.0 if sip else np.max(self.metrics_dict[color_by])
+            vmin = 0.0 if sip else color.min()
+            vmax = 1.0 if sip else color.max()
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
@@ -120,10 +121,10 @@ class MetricsPlotter(MetricsAliases):
         # Make scatter plot
         print("Making scatter plot...")
         ax.scatter(
-            x,
-            y,
+            curves[x_col],
+            curves[y_col],
             s=100,
-            c=self.metrics_dict[color_by][:, 0],
+            c=color,
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
@@ -136,8 +137,8 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_bootstrap_plot(
         self,
-        x: np.ndarray,
-        y: np.ndarray,
+        x_col: str,
+        y_col: str,
         cmap: str,
         dpi: Optional[int],
         color_by: str,
@@ -151,10 +152,6 @@ class MetricsPlotter(MetricsAliases):
         metrics plot to visualize the confidence we have in the main metrics
         curve.
         """
-        x_main = x[:, 0]
-        y_main = y[:, 0]
-        x_boot = x[:, 1:]
-        y_boot = y[:, 1:]
 
         # Create figure
         fig = plt.figure(figsize=(10, 7), dpi=dpi)
@@ -164,10 +161,11 @@ class MetricsPlotter(MetricsAliases):
         ax.set_ylim(0, 1)
 
         # Plot faint bootstrapped curves
-        for i in range(self.metrics_dict["num_bootstrap_samples"]):
+        num_bootstrap_samples = self.metrics.curves["_bootstrap_sample"].nunique() - 1
+        for i in range(num_bootstrap_samples):
             ax.plot(
-                x_boot[:, i],
-                y_boot[:, i],
+                self.metrics.curves.loc[lambda x: x["_bootstrap_sample"] == i, x_col],
+                self.metrics.curves.loc[lambda x: x["_bootstrap_sample"] == i, y_col],
                 alpha=alpha,
                 color=bootstrap_color,
                 linewidth=1,
@@ -175,7 +173,7 @@ class MetricsPlotter(MetricsAliases):
 
         # Plot main colored curve (scatter plot) with color bar
         fig, ax = self._make_plot(
-            x_main, y_main, cmap, dpi, color_by, cbar_rng, cbar_label, grid, fig, ax
+            x_col, y_col, cmap, dpi, color_by, cbar_rng, cbar_label, grid, fig, ax
         )
 
         return fig, ax

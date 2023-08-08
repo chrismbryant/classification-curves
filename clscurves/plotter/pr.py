@@ -1,18 +1,19 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from matplotlib import pyplot as plt
 
 from clscurves.plotter.plotter import MetricsPlotter
+from clscurves.utils import MetricsResult
 
 
 class PRPlotter(MetricsPlotter):
     def __init__(
         self,
-        metrics_dict: Dict[str, Any],
+        metrics: MetricsResult,
         score_is_probability: bool,
     ) -> None:
-        super().__init__(metrics_dict, score_is_probability)
+        super().__init__(metrics, score_is_probability)
 
     def plot_pr(
         self,
@@ -36,20 +37,20 @@ class PRPlotter(MetricsPlotter):
         Parameters
         ----------
         weighted
-            Specifies whether the weighted or unweighted TPR (i.e. recall)
-            should be used. For example, TPR (= tp/pos), if unweighted, is the
+            Specifies whether the weighted or unweighted recall (i.e. TPR)
+            should be used. For example, recall (= tp/pos), if unweighted, is the
             number of positive cases captured above a threshold, divided by the
             total number of positive cases. If weighted, it is the sum of
             weights (or "amounts") associated with each positive case captured
             above a threshold, divided by the sum of weights associated with
             all positive cases. For the PR curve, this weighting applies only
-            to the TPR axis.
+            to the recall axis.
         title
             Title of plot.
         cmap
             Colormap string specification.
         color_by
-            Name of key in metrics_dict that specifies which values to use when
+            Name of key in metrics.curves that specifies which values to use when
             coloring points along the PR curve; this should be either "frac"
             for fraction of cases flagged or "thresh" for score discrimination
             threshold.
@@ -85,20 +86,18 @@ class PRPlotter(MetricsPlotter):
         """
 
         # Specify which values to plot in X and Y
-        x_key = "tpr_w" if weighted else "tpr"
-        y_key = "precision"
-        x = self.metrics_dict[x_key]
-        y = self.metrics_dict[y_key]
+        x_col = "recall_w" if weighted else "recall"
+        y_col = "precision"
 
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                x_col, y_col, cmap, dpi, color_by, cbar_rng, cbar_label, grid
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x,
-                y,
+                x_col,
+                y_col,
                 cmap,
                 dpi,
                 color_by,
@@ -137,8 +136,9 @@ class PRPlotter(MetricsPlotter):
                 )
 
         # Extract class imbalance
-        imb = self.metrics_dict["imbalance"]
-        imb = imb[0] if type(imb) == np.ndarray and not bootstrapped else np.mean(imb)
+        imb = self.metrics.scalars.loc[lambda x: x["_bootstrap_sample"].isnull()][
+            "imbalance"
+        ].iloc[0]
 
         # Plot line of randomness
         ax.plot([0, 1], [imb, imb], "k-")
@@ -160,12 +160,12 @@ class PRPlotter(MetricsPlotter):
         # Plot 95% confidence ellipse
         if op_value is not None:
             self._add_op_ellipse(
-                op_value=op_value, x_key=x_key, y_key=y_key, ax=ax, thresh_key=color_by
+                op_value=op_value, x_col=x_col, y_col=y_col, ax=ax, thresh_key=color_by
             )
 
         # Set labels
         weight_string = "Weighted " if weighted else ""
-        ax.set_xlabel("%sRecall = TPR = TP/(TP + FN)" % weight_string)
+        ax.set_xlabel("%sRecall = recall = TP/(TP + FN)" % weight_string)
         ax.set_ylabel("Precision = TP/(TP + FP)")
         ax.set_title(title)
 

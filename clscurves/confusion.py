@@ -1,13 +1,14 @@
 import itertools
 import logging
-from dataclasses import dataclass
-from multiprocessing import Pool, current_process
+from multiprocessing import Pool
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 import psutil
+from numpy.random import default_rng
 from scipy.integrate import trapz
+from tqdm import tqdm
 from typing_extensions import Literal
 
 from clscurves.config import MetricsAliases
@@ -17,26 +18,11 @@ from clscurves.plotter.pr import PRPlotter
 from clscurves.plotter.prg import PRGPlotter
 from clscurves.plotter.rf import RFPlotter
 from clscurves.plotter.roc import ROCPlotter
+from clscurves.utils import MetricsResult
 
 LOG = logging.getLogger(__name__)
 
 NullFillMethod = Literal["0", "1", "imb", "prob"]
-
-
-@dataclass
-class MetricsResult:
-    """A class to hold the results of a metrics computation.
-
-    Parameters
-    ----------
-    curves : pd.DataFrame
-        DataFrame containing metrics at each threshold.
-    scalars : pd.DataFrame
-        DataFrame containing scalar metrics which apply to the entire dataset.
-    """
-
-    curves: pd.DataFrame
-    scalars: pd.DataFrame
 
 
 class MetricsGenerator(
@@ -61,7 +47,7 @@ class MetricsGenerator(
         imbalance_multiplier: float = 1,
         null_prob_column: Optional[str] = None,
         null_fill_method: Optional[NullFillMethod] = None,
-        seed: Optional[int] = 1,
+        seed: Optional[int] = None,
     ) -> None:
         """Instantiating this class computes all the metrics.
 
@@ -140,7 +126,7 @@ class MetricsGenerator(
             without imputing any null labels, then a new metrics DF will be
             computed for each method and stored in a ``curves_imputed``
             object. If not, only the default metrics DF will be computed.
-        seed : int
+        seed : Optional[int]
             Random seed for bootstrapping.
 
         Examples
@@ -153,6 +139,7 @@ class MetricsGenerator(
                 score_is_probability=False,
                 reverse_thresh=False,
                 num_bootstrap_samples=20,
+                seed=123,
             )
 
         >>> mg.plot_pr(bootstrapped=True)
@@ -172,7 +159,6 @@ class MetricsGenerator(
         self.null_fill_method = null_fill_method
         self.null_probabilities = None
         self.seed = seed
-        self.rng_ss = np.random.SeedSequence(self.seed)
 
         # Metrics to be populated
         self.metrics: MetricsResult
@@ -190,12 +176,18 @@ class MetricsGenerator(
         if predictions_df is not None:
             self.compute_all_metrics(predictions_df)
 
+    def _get_rng(self, idx: int) -> np.random.Generator:
+        """Get random generator for bootstrap sampling."""
+        seed = None if self.seed is None else self.seed + idx + 1
+        return default_rng(seed)
+
     def compute_all_metrics(
         self,
         predictions_df: pd.DataFrame,
         return_results: bool = False,
     ) -> Optional[MetricsResult]:
         """Compute all metrics."""
+        print("Computing metrics...")
 
         # Keep only relevant columns
         cols = [self.label_column, self.score_column]
@@ -205,7 +197,7 @@ class MetricsGenerator(
 
         # Sample input data if too large
         if len(df_sample) > self.max_num_examples:
-            rng = np.random.default_rng(self.rng_ss)
+            rng = self._get_rng(-1)
             seed = int(rng.random() * 2**32)
             df_sample = df_sample.sample(
                 n=self.max_num_examples,
@@ -224,15 +216,33 @@ class MetricsGenerator(
         curves = pd.DataFrame()
         scalars = pd.DataFrame()
         num_workers = psutil.cpu_count()
-        rngs = self.rng_ss.spawn(num_workers)
         with Pool(num_workers) as pool:
-            for metrics in pool.starmap(
-                self.compute_metrics,
-                [(df_sample, *options, rngs) for options in all_options],
+            for metrics in tqdm(
+                pool.starmap(
+                    self.compute_metrics,
+                    [
+                        (df_sample, *options, self._get_rng(i))
+                        for i, options in enumerate(all_options)
+                    ],
+                )
             ):
                 curves = pd.concat([curves, metrics.curves])
                 scalars = pd.concat([scalars, metrics.scalars])
-        metrics = MetricsResult(curves, scalars)
+
+        # Separate imputed metrics from default metrics
+        curves_default = curves.loc[curves["_null_fill_method"].isnull()]
+        scalars_default = scalars.loc[scalars["_null_fill_method"].isnull()]
+        curves_imputed = curves.loc[curves["_null_fill_method"].notnull()]
+        scalars_imputed = scalars.loc[scalars["_null_fill_method"].notnull()]
+
+        metrics = MetricsResult(
+            curves=curves_default,
+            scalars=scalars_default,
+            curves_imputed=curves_imputed,
+            scalars_imputed=scalars_imputed,
+        )
+
+        print("Metrics computation complete.")
 
         # Optional return
         if return_results:
@@ -247,21 +257,9 @@ class MetricsGenerator(
         predictions_df: pd.DataFrame,
         bootstrap_sample: Optional[int] = None,
         null_fill_method: Optional[NullFillMethod] = None,
-        rngs: Optional[np.random.SeedSequence] = None,
+        rng: np.random.Generator = default_rng(),
     ) -> MetricsResult:
         """Compute metrics for a single bootstrap sample."""
-
-        # Set random generator for bootstrap
-        rng = None
-        if rngs is not None:
-            process = current_process()
-            try:
-                worker_id = int(process.name.split("-")[-1])
-                rng = np.random.default_rng(rngs[worker_id])
-            except Exception:
-                LOG.warning(
-                    f"Failed to get worker ID from process `{process}` for bootstrap sampling."
-                )
 
         # Make a bootstrap
         _df = predictions_df
@@ -287,9 +285,9 @@ class MetricsGenerator(
         )
 
         # Attach metadata to output
-        metrics.curves["_bootstrap"] = bootstrap_sample
+        metrics.curves["_bootstrap_sample"] = bootstrap_sample
         metrics.curves["_null_fill_method"] = null_fill_method
-        metrics.scalars["_bootstrap"] = bootstrap_sample
+        metrics.scalars["_bootstrap_sample"] = bootstrap_sample
         metrics.scalars["_null_fill_method"] = null_fill_method
 
         return metrics
@@ -410,8 +408,10 @@ class MetricsGenerator(
         scalars = {
             "num_examples": num_examples,
             "num_examples_pos": num_examples_pos,
+            "num_examples_neg": num_examples_neg,
             "tot_weight": tot_weight,
             "tot_weight_pos": tot_weight_pos,
+            "tot_weight_neg": tot_weight_neg,
             "imbalance": imbalance,
             "roc_auc": np.abs(trapz(df["recall"], df["fpr"])),
             "pr_auc": np.abs(trapz(df["precision"], df["recall"])),
@@ -428,17 +428,20 @@ class MetricsGenerator(
     def _make_bootstrap(
         self,
         df: pd.DataFrame,
-        rng: np.random.Generator = np.random.default_rng(),
+        rng: np.random.Generator = default_rng(),
     ) -> pd.DataFrame:
         """Make bootstrap sample.
 
         Sample with replacement from the input DataFrame to create a bootstrap
         sample of the same size as the input DataFrame.
         """
+        random_state = (
+            np.random.RandomState(int(rng.random() * 2**32)) if rng else None
+        )
         return df.sample(
             n=len(df),
             replace=True,
-            random_state=np.random.RandomState(int(rng.random() * 2**32)),
+            random_state=random_state,
         )
 
     def _fill_null_labels(
@@ -446,7 +449,7 @@ class MetricsGenerator(
         labels: np.ndarray,
         null_fill_method: NullFillMethod,
         null_probs: Optional[np.ndarray] = None,
-        rng: np.random.Generator = np.random.default_rng(),
+        rng: np.random.Generator = default_rng(),
     ) -> np.ndarray:
         """Fill null labels according to the specified method.
 
