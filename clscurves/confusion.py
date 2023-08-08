@@ -34,6 +34,17 @@ class MetricsGenerator(
     DistPlotter,
     MetricsAliases,
 ):
+    """A class to generate classification curve metrics.
+
+    A class for computing Precision/Recall/Fraction metrics across a binary
+    classification algorithm's full range of discrimination thresholds, and
+    plotting those metrics as ROC (Receiver Operating Characteristic), PR
+    (Precision & Recall), or RF (Recall & Fraction) plots. The input data
+    format for this class is a PySpark DataFrame with at least a column of
+    labels and a column of scores (with an optional additional column of label
+    weights).
+    """
+
     def __init__(
         self,
         predictions_df: Optional[pd.DataFrame] = None,
@@ -188,6 +199,11 @@ class MetricsGenerator(
     ) -> Optional[MetricsResult]:
         """Compute all metrics."""
         print("Computing metrics...")
+
+        # Check if there are any null labels
+        labels_contain_null = predictions_df[self.label_column].isnull().any()
+        if labels_contain_null:
+            LOG.warning(" >>> WARNING: Labels contain null values.")
 
         # Keep only relevant columns
         cols = [self.label_column, self.score_column]
