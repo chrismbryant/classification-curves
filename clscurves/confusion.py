@@ -475,7 +475,7 @@ class MetricsGenerator(
         if null_fill_method == "1":
             return np.where(labels == np.nan, 1, labels)
         if null_fill_method == "imb":
-            labels_from_imb = (rng.rand(*labels.shape) < imbalance).astype(int)
+            labels_from_imb = (rng.random(*labels.shape) < imbalance).astype(int)
             return np.where(labels == np.nan, labels_from_imb, labels)
         if null_fill_method == "prob":
             if null_probs is None:
@@ -484,7 +484,7 @@ class MetricsGenerator(
                 )
             return np.where(
                 labels == np.nan,
-                (rng.rand(*labels.shape) < null_probs).astype(int),
+                (rng.random(*labels.shape) < null_probs).astype(int),
                 labels,
             )
 
