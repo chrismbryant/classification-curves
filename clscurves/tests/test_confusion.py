@@ -27,4 +27,3 @@ def test_compute_confusion_matrix() -> None:
 
     # TODO: Make a real test
     assert mg is not None
-    breakpoint()
