@@ -1,8 +1,6 @@
 from typing import List, Optional, Tuple
 
-import numpy as np
 from matplotlib import pyplot as plt
-from scipy.ndimage import gaussian_filter1d
 from typing_extensions import Literal
 
 from clscurves.plotter.plotter import MetricsPlotter
@@ -30,7 +28,7 @@ class DistPlotter(MetricsPlotter):
         log_scale: bool = False,
         title: Optional[str] = None,
         cmap: str = "rainbow",
-        color_by: str = "tpr",
+        color_by: str = "recall",
         cbar_rng: Optional[List[float]] = None,
         cbar_label: Optional[str] = None,
         grid: bool = True,
@@ -110,23 +108,10 @@ class DistPlotter(MetricsPlotter):
         kind = kind.lower()
         assert kind in ["cdf", "pdf"], '`kind` must be "cdf" or "pdf"'
 
-        # Specify which values to plot in X and Y
-        scalars = self.metrics.scalars.loc[lambda x: x["_bootstrap_sample"].isnull()]
-        curves = self.metrics.curves.loc[lambda x: x["_bootstrap_sample"].isnull()]
-        x = curves["thresh"]
-
         # Compute CDF
         _w = "_w" if weighted else ""
         if label == "all":
-            cdf = 1 - curves[f"frac{_w}"]
-        elif label == 1:
-            denom = (
-                scalars["tot_weight_pos"] if weighted else scalars["num_examples_pos"]
-            )
-            cdf = 1 - self.metrics.curves[f"tp{_w}"] / denom
-        elif label == 0:
-            denom = self.metrics.curves[f"neg{_w}"]
-            cdf = 1 - self.metrics.curves[f"fp{_w}"] / denom
+            cdf = 1 - self.metrics.curves["frac" + _w]
         else:
             raise NotImplementedError("TODO: Implement label=None case.")
 
@@ -134,26 +119,21 @@ class DistPlotter(MetricsPlotter):
         if self.reverse_thresh:
             cdf = 1 - cdf
 
-        # Compute discrete difference to convert CDF to PDF
-        dy = np.diff(cdf, axis=0)
-        dx = np.diff(x, axis=0)
-        zeros = np.zeros([1, dy.shape[1]])
-        pdf = np.nan_to_num(
-            np.concatenate([zeros, dy], axis=0) / np.concatenate([zeros, dx], axis=0)
-        )
+        self.metrics.curves["_cdf"] = cdf
+        x_col = "thresh"
+        y_col = "_cdf"
 
-        # Smooth y if it's a PDF
-        y = cdf if kind == "cdf" else gaussian_filter1d(pdf, kernel_size, axis=0)
+        # TODO: Support PDF via KDE.
 
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                x_col, y_col, cmap, dpi, color_by, cbar_rng, cbar_label, grid
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x,
-                y,
+                x_col,
+                y_col,
                 cmap,
                 dpi,
                 color_by,

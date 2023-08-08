@@ -59,9 +59,9 @@ class MetricsPlotter(MetricsAliases):
             return df.iloc[0]
 
         # Get operating point coordinates for each bootstrapped sample
-        op_points = self.metrics.curves.groupby("_bootstrap_sample").apply(
-            find_op_point
-        )
+        op_points = self.metrics.curves.groupby(
+            "_bootstrap_sample", dropna=False
+        ).apply(find_op_point)
         op_data = op_points[[x_col, y_col]].values.T
 
         # Compute covariance ellipse and add to ax
