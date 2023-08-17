@@ -1,18 +1,18 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-import numpy as np
 from matplotlib import pyplot as plt
 
 from clscurves.plotter.plotter import MetricsPlotter
+from clscurves.utils import MetricsResult
 
 
 class RFPlotter(MetricsPlotter):
     def __init__(
         self,
-        metrics_dict: Dict[str, Any],
+        metrics: MetricsResult,
         score_is_probability: bool,
     ) -> None:
-        super().__init__(metrics_dict, score_is_probability)
+        super().__init__(metrics, score_is_probability)
 
     def plot_rf(
         self,
@@ -28,6 +28,7 @@ class RFPlotter(MetricsPlotter):
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
+        imputed: bool = False,
         op_value: Optional[float] = None,
         return_fig: bool = False,
     ) -> Optional[Tuple[plt.figure, plt.axes]]:
@@ -53,10 +54,10 @@ class RFPlotter(MetricsPlotter):
         cmap
             Colormap string specification.
         color_by
-            Name of key in metrics_dict that specifies which values to use when
-            coloring points along the ROC curve; this should be either "frac"
-            for fraction of cases flagged or "thresh" for score discrimination
-            threshold.
+            Name of key in metrics.curves that specifies which values to use
+            when coloring points along the ROC curve; this should be either
+            "frac" for fraction of cases flagged or "thresh" for score
+            discrimination threshold.
         cbar_rng
             Specify a color bar range of the form [min_value, max_value] to
             override the default range.
@@ -78,6 +79,8 @@ class RFPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        imputed
+            Whether to plot imputed curves.
         op_value
             Threshold value to plot a confidence ellipse for when the plot is
             bootstrapped.
@@ -86,37 +89,47 @@ class RFPlotter(MetricsPlotter):
             plotting the figure.
         """
 
+        # Get metrics
+        curves, scalars = self._get_metrics(imputed=imputed)
+
         # Specify which values to plot in X and Y
-        x_key = "frac"
-        y_key = "tpr_w" if weighted else "tpr"
-        x = self.metrics_dict[x_key]
-        y = self.metrics_dict[y_key]
+        x_col = "frac"
+        y_col = "recall_w" if weighted else "recall"
 
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x,
-                y,
-                cmap,
-                dpi,
-                color_by,
-                cbar_rng,
-                cbar_label,
-                grid,
-                bootstrap_alpha,
-                bootstrap_color,
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
+                alpha=bootstrap_alpha,
+                bootstrap_color=bootstrap_color,
             )
 
         # Plot line of randomness
         ax.plot([0, 1], [0, 1], "k-")
 
         # Extract AUC
-        auc = self.metrics_dict["rf_auc_w" if weighted else "rf_auc"]
-        auc = auc[0] if type(auc) == np.ndarray and not bootstrapped else np.mean(auc)
+        scalars = scalars.loc[lambda x: x["_bootstrap_sample"].isnull()]
+        auc = scalars["rf_auc_w" if weighted else "rf_auc"].iloc[0]
 
         # Add RF AUC to plot
         ax.text(
@@ -131,7 +144,12 @@ class RFPlotter(MetricsPlotter):
         # Plot 95% confidence ellipse
         if op_value is not None:
             self._add_op_ellipse(
-                op_value=op_value, x_key=x_key, y_key=y_key, ax=ax, thresh_key=color_by
+                curves=curves,
+                op_value=op_value,
+                x_col=x_col,
+                y_col=y_col,
+                ax=ax,
+                thresh_key=color_by,
             )
 
         # Set labels

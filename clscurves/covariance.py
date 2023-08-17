@@ -31,7 +31,7 @@ class CovarianceEllipseGenerator:
         assert data.shape[0] == 2, f"Data must be of shape 2xM, not {data.shape}."
 
         self.data = data
-        self.conf: float
+        self.conf: Optional[float] = None
         self.ellipse_data: Dict[str, float]
         self.ellipse_patch: patches.Ellipse
 

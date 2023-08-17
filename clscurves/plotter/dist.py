@@ -1,32 +1,34 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
-import numpy as np
 from matplotlib import pyplot as plt
-from scipy.ndimage import gaussian_filter1d
+from typing_extensions import Literal
 
 from clscurves.plotter.plotter import MetricsPlotter
+from clscurves.utils import MetricsResult
+
+Label = Literal["all", 0, 1, None]
 
 
 class DistPlotter(MetricsPlotter):
     def __init__(
         self,
-        metrics_dict: Dict[str, Any],
+        metrics: MetricsResult,
         score_is_probability: bool,
         reverse_thresh: bool,
     ) -> None:
-        super().__init__(metrics_dict, score_is_probability)
+        super().__init__(metrics, score_is_probability)
         self.reverse_thresh = reverse_thresh
 
     def plot_dist(  # noqa: C901
         self,
         weighted: bool = False,
-        label: Optional[Union[str, int]] = "all",
+        label: Label = "all",  # noqa
         kind: str = "CDF",
         kernel_size: float = 10,
         log_scale: bool = False,
         title: Optional[str] = None,
         cmap: str = "rainbow",
-        color_by: str = "tpr",
+        color_by: str = "recall",
         cbar_rng: Optional[List[float]] = None,
         cbar_label: Optional[str] = None,
         grid: bool = True,
@@ -36,6 +38,7 @@ class DistPlotter(MetricsPlotter):
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
+        imputed: bool = False,
         return_fig: bool = False,
     ) -> Optional[Tuple[plt.figure, plt.axes]]:
         """Plot the data distribution.
@@ -66,8 +69,8 @@ class DistPlotter(MetricsPlotter):
         cmap
             Colormap string specification.
         color_by
-            Name of key in metrics_dict that specifies which values to use when
-            coloring points along the PDF or CDF curve.
+            Name of key in metrics.curves that specifies which values to use
+            when coloring points along the PDF or CDF curve.
         cbar_rng
             Specify a color bar range of the form [min_value, max_value] to
             override the default range.
@@ -92,6 +95,8 @@ class DistPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        imputed
+            Whether to plot imputed curves.
         return_fig
             If set to True, will return (fig, ax) as a tuple instead of
             plotting the figure.
@@ -106,57 +111,52 @@ class DistPlotter(MetricsPlotter):
         kind = kind.lower()
         assert kind in ["cdf", "pdf"], '`kind` must be "cdf" or "pdf"'
 
-        # Specify which values to plot in X and Y
-        x = self.metrics_dict["thresh"] * np.ones(
-            1 + self.metrics_dict["num_bootstrap_samples"]
-        )
+        # Get metrics
+        curves, _ = self._get_metrics(imputed=imputed)
 
         # Compute CDF
         _w = "_w" if weighted else ""
         if label == "all":
-            cdf = 1 - self.metrics_dict["frac" + _w]
-        elif label == 1:
-            denom = self.metrics_dict["pos" + _w]
-            cdf = 1 - self.metrics_dict["tp" + _w] / denom
-        elif label == 0:
-            denom = self.metrics_dict["neg" + _w]
-            cdf = 1 - self.metrics_dict["fp" + _w] / denom
+            cdf = 1 - curves["frac" + _w]
         else:
-            denom = self.metrics_dict["unk" + _w]
-            cdf = 1 - self.metrics_dict["up" + _w] / denom
+            raise NotImplementedError("TODO: Implement label=None case.")
 
         # Account for reversed-behavior thresholds
         if self.reverse_thresh:
             cdf = 1 - cdf
 
-        # Compute discrete difference to convert CDF to PDF
-        dy = np.diff(cdf, axis=0)
-        dx = np.diff(x, axis=0)
-        zeros = np.zeros([1, dy.shape[1]])
-        pdf = np.nan_to_num(
-            np.concatenate([zeros, dy], axis=0) / np.concatenate([zeros, dx], axis=0)
-        )
+        curves["_cdf"] = cdf
+        x_col = "thresh"
+        y_col = "_cdf"
 
-        # Smooth y if it's a PDF
-        y = cdf if kind == "cdf" else gaussian_filter1d(pdf, kernel_size, axis=0)
+        # TODO: Support PDF via KDE.
 
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x,
-                y,
-                cmap,
-                dpi,
-                color_by,
-                cbar_rng,
-                cbar_label,
-                grid,
-                bootstrap_alpha,
-                bootstrap_color,
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
+                alpha=bootstrap_alpha,
+                bootstrap_color=bootstrap_color,
             )
 
         # Change x-axis range

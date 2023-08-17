@@ -1,9 +1,15 @@
-import warnings
-from typing import Any, Dict, List, Optional, Union
+import itertools
+import logging
+from multiprocessing import Pool
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+import psutil
+from numpy.random import default_rng
 from scipy.integrate import trapz
+from tqdm import tqdm
+from typing_extensions import Literal
 
 from clscurves.config import MetricsAliases
 from clscurves.plotter.cost import CostPlotter
@@ -12,6 +18,11 @@ from clscurves.plotter.pr import PRPlotter
 from clscurves.plotter.prg import PRGPlotter
 from clscurves.plotter.rf import RFPlotter
 from clscurves.plotter.roc import ROCPlotter
+from clscurves.utils import MetricsResult
+
+LOG = logging.getLogger(__name__)
+
+NullFillMethod = Literal["0", "1", "imb", "prob"]
 
 
 class MetricsGenerator(
@@ -37,7 +48,6 @@ class MetricsGenerator(
     def __init__(
         self,
         predictions_df: Optional[pd.DataFrame] = None,
-        n_thresh: int = 500,
         max_num_examples: int = 100000,
         label_column: str = "label",
         score_column: str = "probability",
@@ -47,27 +57,25 @@ class MetricsGenerator(
         num_bootstrap_samples: int = 0,
         imbalance_multiplier: float = 1,
         null_prob_column: Optional[str] = None,
-        null_fill_methods: Optional[List[str]] = None,
-        seed: int = 1,
-    ):
+        null_fill_method: Optional[NullFillMethod] = None,
+        seed: Optional[int] = None,
+    ) -> None:
         """Instantiating this class computes all the metrics.
 
-        PARAMETERS
+        Parameters
         ----------
-        predictions_df
+        predictions_df : pd.DataFrame
             Input DataFrame which must contain a column of labels (integer
             column of 1s and 0s) and a column of scores (either a dense vector
             column with two elements [prob_0, prob_1] or a real-valued column
             of scores).
-        n_thresh
-            number of threshold values.
-        max_num_examples
+        max_num_examples : int
             Max number of rows to sample to prevent numpy memory limits from
             being exceeded.
-        label_column
+        label_column : str
             Name of the column containing the example labels, which must all be
             either 0 or 1.
-        score_column
+        score_column : str
             Name of the column containing the example scores which rank model
             predictions. Even though binary classification models typically
             output probabilities, these scores need not be bounded by 0 and 1;
@@ -75,7 +83,7 @@ class MetricsGenerator(
             numeric type or a 2-element vector of probabilities, with the first
             element being the probability that the example is of class 0 and
             the second element that the example is of class 1.
-        weight_column
+        weight_column : Optional[str]
             Name of the column containing label weights associated with each
             example. These weights are useful when the cost of classifying an
             example incorrectly varies from example to example; see fraud, for
@@ -84,23 +92,23 @@ class MetricsGenerator(
             is, "How much money did we catch", not "How many cases did we
             catch". If no column name is specified, all weights will be set to
             1.
-        score_is_probability
+        score_is_probability : bool
             Specifies whether the values in the score column are bounded by 0
             and 1. This controls how the threshold range is determined. If
             true, the threshold range will sweep from 0 to 1. If false, it will
             sweep from the minimum to maximum score value.
-        num_bootstrap_samples
+        num_bootstrap_samples : int
             Number of bootstrap samples to generate from the original data when
             computing performance metrics.
-        reverse_thresh
+        reverse_thresh : bool
             Boolean indicating whether the score threshold should be treated as
             a lower bound on "positive" predictions (as is standard) or instead
             as an upper bound. If `True`, the threshold behavior will be
             reversed from standard so that any prediction falling BELOW a score
             threshold will be marked as positive, with all those falling above
             the threshold marked as negative.
-        imbalance_multiplier
-            Positive value to artifically increase the negative class example
+        imbalance_multiplier : float
+            Positive value to artifically increase the positive class example
             count by a multiplicative weighting factor. Use this if you're
             generating metrics for a data distribution with a class imbalance
             that doesn't represent the true distribution in the wild. For
@@ -108,7 +116,7 @@ class MetricsGenerator(
             you have a 10:1 class imbalance in the wild (i.e. 10 negative
             examples for every 1 positive example), set the
             ``imbalance_multiplier`` value to 10.
-        null_prob_column
+        null_prob_column : Optional[str]
             Column containing calibrated label probabilities to use as the
             sampling distribution for imputing null label values. We provide
             this argument so that you can evaluate a possibly-uncalibrated
@@ -116,9 +124,8 @@ class MetricsGenerator(
             different provided calibrated label distribution. If this argument
             is `None`, then the ``score_column`` will be used as the estimated
             label distribution when necessary.
-        null_fill_methods
-            List of methods to use when filling in null label values. Possible
-            values:
+        null_fill_method : Optional[NullFillMethod]
+            Methods to use when filling in null label values. Possible values:
                 * "0" - fill with 0
                 * "1" - fill with 1
                 * "imb" - fill randomly according to the class imbalance of
@@ -126,31 +133,31 @@ class MetricsGenerator(
                 * "prob" - fill randomly according to the ``score_column``
                     probability distribution or the ``null_prob_column``
                     probability distribution, if provided.
-            If a list of methods is provided, once the default metrics
-            dictionary is computed without imputing any null labels, then a new
-            metrics dict will be computed for each method and stored in an
-            ``metrics_dict_imputed`` dictionary object. If not, only the
-            default metrics dictionary will be computed.
-        seed
+            If a method is provided, once the default metrics DF is computed
+            without imputing any null labels, then a new metrics DF will be
+            computed for each method and stored in a ``curves_imputed``
+            object. If not, only the default metrics DF will be computed.
+        seed : Optional[int]
             Random seed for bootstrapping.
 
         Examples
         --------
         >>> mg = MetricsGenerator(
-            predictions_df,
-            label_column = "label",
-            score_column = "score",
-            weight_column = "weight",
-            score_is_probability = False,
-            reverse_thresh = False,
-            num_bootstrap_samples = 20)
+                predictions_df,
+                label_column="label",
+                score_column="score",
+                weight_column="weight",
+                score_is_probability=False,
+                reverse_thresh=False,
+                num_bootstrap_samples=20,
+                seed=123,
+            )
 
-        >>> mg.plot_pr(bootstrapped = True)
+        >>> mg.plot_pr(bootstrapped=True)
         >>> mg.plot_roc()
         """
 
-        # Assign instance attributes
-        self.N = n_thresh
+        self.predictions_df = predictions_df
         self.max_num_examples = max_num_examples
         self.label_column = label_column
         self.score_column = score_column
@@ -160,505 +167,369 @@ class MetricsGenerator(
         self.num_bootstrap_samples = num_bootstrap_samples
         self.imbalance_multiplier = imbalance_multiplier
         self.null_prob_column = null_prob_column
-        self.null_fill_methods = null_fill_methods
+        self.null_fill_method = null_fill_method
         self.null_probabilities = None
         self.seed = seed
-        self.metrics_dict: Dict[str, Any] = {}
-        self.metrics_dict_imputed: Dict[str, Any] = {}
 
-        # Set seed
-        np.random.seed(self.seed)
-
-        assert self.null_fill_methods is None or all(
-            [m in ["0", "1", "imb", "prob"] for m in self.null_fill_methods]
-        ), "Each null_fill_method must be in ['0', '1', 'imb', 'prob']."
-
-        if predictions_df is not None:
-
-            # Collect data into arrays
-            self.predictions_df = predictions_df
-            syw = self._collect_syw()
-
-            # Assign thresholds
-            self.thresholds = self._get_thresholds(syw["s"])
-
-            # Bootstrap if necessary
-            syw = self._make_bootstraps(syw)
-
-            # Extract values
-            self.scores = syw["s"]
-            self.labels = syw["y"]
-            self.weights = syw["w"]
-            if "p" in syw:
-                self.null_probabilities = syw["p"]
-
-            # Compute standard classification curve metrics
-            self.compute_metrics(self.scores, self.labels, self.weights)
-
-            # Compute imputed-null classification curve metrics
-            if self.null_fill_methods is not None:
-                self.compute_metrics_with_unk()
-
-    def _collect_syw(self) -> Dict[str, np.ndarray]:
-        """
-        Collect scores (s), labels (y), and weights (w) from a Pandas
-        prediction DataFrame into 3 separate NumPy arrays. Convert all None
-        labels to NaN after collecting.
-        """
-        syw = dict()
-
-        syw["s"] = self.predictions_df[self.score_column].to_numpy().astype(np.float32)
-
-        syw["y"] = self.predictions_df[self.label_column].to_numpy().astype(np.float32)
-
-        # Set weight column to 1 if not specified
-        if self.weight_column is not None:
-            syw["w"] = (
-                self.predictions_df[self.weight_column].to_numpy().astype(np.float32)
-            )
-        else:
-            syw["w"] = np.ones(
-                self.predictions_df[self.score_column].to_numpy().shape,
-                dtype=np.float32,
-            )
-
-        # Only set p if the null prob column is specified
-        if self.null_prob_column is not None:
-            syw["p"] = (
-                self.predictions_df[self.null_prob_column].to_numpy().astype(np.float32)
-            )
-
-        return syw
-
-    def _make_bootstraps(self, arrays: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        """
-        Construct matched bootstrap samples for all the arrays in an input
-        dictionary if the number of bootstrap samples is set to a value greater
-        than 0, then concatenate those bootstraps to the original arrays.
-        Otherwise, reshape input arrays so that they are 2D (vertical vectors).
-        """
-        tot = len(arrays[list(arrays.keys())[0]])
-        if self.num_bootstrap_samples > 0:
-            print(f"Creating {self.num_bootstrap_samples} bootstrap samples...")
-            ix = np.random.choice(np.arange(tot), (tot, self.num_bootstrap_samples))
-            arrays = {
-                key: np.concatenate([arr.reshape(tot, 1), arr[ix]], axis=1)
-                for key, arr in arrays.items()
-            }
-        else:
-            arrays = {key: arr.reshape(tot, 1) for key, arr in arrays.items()}
-
-        return arrays
-
-    def _get_thresholds(self, scores: np.ndarray) -> np.ndarray:
-        """
-        Given an array of scores, create an ordered list of threshold values
-        which includes:
-            1. The minimum input score,
-            2. The maximum input score,
-            3. A set of scores equally spaced between the min and max score
-                value, and
-            4. A set of scores equally spaced throughout the score quantile
-                distribution.
-        """
-        num_examples = len(scores)
-        score_bounds = (
-            [0, 1] if self.score_is_probability else [min(scores), max(scores)]
-        )  # noqa
-        score_range = score_bounds[1] - score_bounds[0]
-        thresh_equal = (
-            score_bounds[0] + score_range * np.arange(self.N) / self.N
-        )  # noqa
-        indices = np.ndarray.astype(
-            np.arange(self.N) * num_examples / self.N, int
-        )  # noqa
-        thresholds = np.sort(
-            np.unique(
-                np.concatenate(
-                    [
-                        np.array([score_bounds[0]]),
-                        np.sort(scores)[indices],
-                        thresh_equal,
-                        np.array([score_bounds[1]]),
-                    ]
-                )
-            )
-        )
-        thresholds = np.atleast_2d(thresholds).T
-
-        return thresholds
-
-    def _compute_pos_neg_dict(
-        self, labels: np.ndarray, weights: np.ndarray
-    ) -> Dict[str, np.ndarray]:
-        """
-        Compute number of positive-, negative-, and un-labeled examples,
-        and the total weighted amount covered by each label type.
-        """
+        # Metrics to be populated
+        self.metrics: MetricsResult
 
         # Print imbalance multiplier warning
         if self.imbalance_multiplier != 1:
             print(f"Artificial imbalance multiplier: {self.imbalance_multiplier}")
 
-        # Alias input parameters
-        y = labels
-        w = weights
+        if null_fill_method not in [None, "0", "1", "imb", "prob"]:
+            raise ValueError(
+                f"Invalid null_fill_method: {null_fill_method}. Must be one of "
+                f"None, '0', '1', 'imb', or 'prob'."
+            )
 
-        # Compute the label prior distributions
-        pos_neg_dict = {
-            "pos": np.sum(y == 1, axis=0),
-            "neg": np.sum(y == 0, axis=0) * self.imbalance_multiplier,
-            "unk": np.sum(np.isnan(y), axis=0),
-            "pos_w": np.sum((y == 1) * w, axis=0),
-            "neg_w": np.sum((y == 0) * w, axis=0) * self.imbalance_multiplier,
-            "unk_w": np.sum(np.isnan(y) * w, axis=0),
-        }
+        if predictions_df is not None:
+            self.compute_all_metrics(predictions_df)
 
-        # Compute class imbalance
-        d = pos_neg_dict
-        pos_neg_dict["imbalance"] = d["pos"] / (d["pos"] + d["neg"])
+    def _get_rng(self, idx: int) -> np.random.Generator:
+        """Get random generator for bootstrap sampling."""
+        seed = None if self.seed is None else self.seed + idx + 1
+        return default_rng(seed)
 
-        return pos_neg_dict
-
-    def _compute_tp_fp_dict(
+    def compute_all_metrics(
         self,
-        scores: np.ndarray,
-        labels: np.ndarray,
-        weights: np.ndarray,
-        thresholds: np.ndarray,
-    ) -> Dict[str, np.ndarray]:
-        """
-        Compute unweighted and weighted TP and FP arrays, given input arrays of
-        model scores, data labels, data weights, and threshold values. Also
-        compute UP ("unknown positive") arrays if there are any records which
-        have an unknown label (i.e. label = None).
-        """
-        print("Computing confusion matrices...")
+        predictions_df: pd.DataFrame,
+        return_results: bool = False,
+    ) -> Optional[MetricsResult]:
+        """Compute all metrics."""
+        print("Computing metrics...")
 
         # Check if there are any null labels
-        self.labels_contain_null = np.sum(np.isnan(labels)) > 0
+        labels_contain_null = predictions_df[self.label_column].isnull().any()
+        if labels_contain_null:
+            LOG.warning(" >>> WARNING: Labels contain null values.")
 
-        # Initialize empty lists TP and FP lists
-        tp = []
-        fp = []
-        tp_w = []
-        fp_w = []
-        if self.labels_contain_null:
-            print(" >>> WARNING: Label column contains some null values.")
-            up = []
-            up_w = []
+        # Keep only relevant columns
+        cols = [self.label_column, self.score_column]
+        if self.weight_column:
+            cols.append(self.weight_column)
+        df_sample = predictions_df[cols].copy()
 
-        # Compute TP and FP at each threshold
-        for t in thresholds:
-
-            # Note: predictions shape = (num_examples, num_bootstrap_samples)
-            predictions = (
-                (scores <= t) if self.reverse_thresh else (scores >= t)
-            ).astype(
-                int
-            )  # noqa
-            tp_value = np.sum(
-                np.logical_and(predictions == 1, labels == 1), axis=0
-            ).T  # noqa
-            fp_value = np.sum(
-                np.logical_and(predictions == 1, labels == 0), axis=0
-            ).T  # noqa
-            tp_w_value = np.sum(
-                weights * np.logical_and(predictions == 1, labels == 1), axis=0
-            ).T
-            fp_w_value = np.sum(
-                weights * np.logical_and(predictions == 1, labels == 0), axis=0
-            ).T
-
-            tp.append(tp_value)
-            fp.append(fp_value)
-            tp_w.append(tp_w_value)
-            fp_w.append(fp_w_value)
-
-            # Account for unknown labels
-            if self.labels_contain_null:
-
-                up_value = np.sum(
-                    np.logical_and(predictions == 1, np.isnan(labels)), axis=0
-                ).T
-
-                up_w_value = np.sum(
-                    weights * np.logical_and(predictions == 1, np.isnan(labels)), axis=0
-                ).T
-
-                up.append(up_value)
-                up_w.append(up_w_value)
-
-        # Transform lists to arrays
-        tp_fp_dict = {
-            "tp": np.ndarray(tp),
-            "fp": np.ndarray(fp) * self.imbalance_multiplier,
-            "tp_w": np.ndarray(tp_w),
-            "fp_w": np.ndarray(fp_w) * self.imbalance_multiplier,
-        }
-
-        # Account for unknown labels
-        if self.labels_contain_null:
-            tp_fp_dict["up"] = np.array(up)
-            tp_fp_dict["up_w"] = np.array(up_w)
-
-        return tp_fp_dict
-
-    def _compute_tn_fn_dict(
-        self, tp_fp_dict: Dict[str, np.ndarray], pos_neg_dict: Dict[str, np.ndarray]
-    ) -> Dict[str, np.ndarray]:
-        """
-        Compute complementary TN and FN metrics for given TP and FP metrics.
-        """
-
-        # Combine input dicts into single dict
-        d = {**tp_fp_dict, **pos_neg_dict}
-
-        # Compute standard complementary metrics
-        tn_fn_dict = {
-            "fn": d["pos"] - d["tp"],
-            "tn": d["neg"] - d["fp"],
-            "fn_w": d["pos_w"] - d["tp_w"],
-            "tn_w": d["neg_w"] - d["fp_w"],
-        }
-
-        # Compute complementary metrics for unknown labels
-        if self.labels_contain_null:
-            tn_fn_dict["un"] = d["unk"] - d["up"]
-            tn_fn_dict["un_w"] = d["unk_w"] - d["up_w"]
-
-        return tn_fn_dict
-
-    def _compute_confusion_dict(
-        self,
-        scores: np.ndarray,
-        labels: np.ndarray,
-        weights: np.ndarray,
-        thresholds: np.ndarray,
-    ) -> Dict[str, np.ndarray]:
-        """
-        Compute all aspects of the unweighted and weighted confusion matrix,
-        given input arrays of model scores, data labels, data weights, and
-        threshold values.
-        """
-        pos_neg_dict = self._compute_pos_neg_dict(labels, weights)
-        tp_fp_dict = self._compute_tp_fp_dict(
-            scores, labels, weights, thresholds
-        )  # noqa
-        tn_fn_dict = self._compute_tn_fn_dict(tp_fp_dict, pos_neg_dict)
-        confusion_dict = {**pos_neg_dict, **tp_fp_dict, **tn_fn_dict}
-        return confusion_dict
-
-    @staticmethod
-    def _compute_metrics_dict(
-        confusion_dict: Dict[str, np.ndarray]
-    ) -> Dict[str, np.ndarray]:
-        """
-        Compute performance metrics from TP and FP values, making sure to
-        account for divide-by-zero cases in the precision values.
-        """
-        print("Computing performance metric curves...")
-        warnings.filterwarnings("ignore")  # Ignore divide-by-zero warnings
-        d = confusion_dict
-        imb = d["imbalance"]
-        tot = d["pos"] + d["neg"] + d["unk"]
-        tot_w = d["pos_w"] + d["neg_w"] + d["unk_w"]
-
-        recall = d["tp"] / d["pos"]
-        precision = np.nan_to_num(d["tp"] / (d["tp"] + d["fp"]))
-
-        def compute_gain(
-            metric: np.ndarray, imbal: Union[np.ndarray, float]
-        ) -> np.ndarray:
-            return np.clip((metric - imbal) / ((1 - imbal) * metric), a_min=0, a_max=1)
-
-        recall_gain = compute_gain(recall, imb)
-        precision_gain = compute_gain(precision, imb)
-
-        metrics_dict = {
-            "tpr": recall,
-            "fpr": d["fp"] / d["neg"],
-            "tpr_w": d["tp_w"] / d["pos_w"],
-            "fpr_w": d["fp_w"] / d["neg_w"],
-            "frac": (d["tp"] + d["fp"] + d.get("up", 0)) / tot,
-            "frac_w": (d["tp_w"] + d["fp_w"] + d.get("up_w", 0)) / tot_w,
-            "precision": precision,
-            "f1": np.nan_to_num(2 * precision * recall / (precision + recall)),
-            "recall_gain": recall_gain,
-            "precision_gain": precision_gain,
-        }
-        return metrics_dict
-
-    @staticmethod
-    def _compute_area_metrics_dict(
-        metrics_dict: Dict[str, np.ndarray]
-    ) -> Dict[str, np.ndarray]:
-        """
-        Compute single-number area-under-the-curve metrics for all the computed
-        performance curves.
-        """
-
-        # Compute area under ROC, PR, and RF curves
-        print("Computing area metrics...")
-        d = metrics_dict
-        area_metrics_dict = {
-            "roc_auc": np.abs(trapz(d["tpr"], d["fpr"], axis=0)),
-            "pr_auc": np.abs(trapz(d["precision"], d["tpr"], axis=0)),
-            "rf_auc": np.abs(trapz(d["tpr"], d["frac"], axis=0)),
-            "roc_auc_w": np.abs(trapz(d["tpr_w"], d["fpr_w"], axis=0)),
-            "pr_auc_w": np.abs(trapz(d["precision"], d["tpr_w"], axis=0)),
-            "rf_auc_w": np.abs(trapz(d["tpr_w"], d["frac"], axis=0)),
-            "prg_auc": np.abs(trapz(d["precision_gain"], d["recall_gain"], axis=0)),
-        }
-        return area_metrics_dict
-
-    def compute_metrics_with_unk(self):
-        """
-        Compute new metrics dicts after filling in unknown labels with 0s or 1s
-        via a variety of methods:
-        * "0" -- fill unknown labels with 0
-        * "1" -- fill unknown labels with 1
-        * "imb" -- fill unknown labels with 0 or 1 probabilistically according
-            to the class imbalance of the known labels.
-        * "prob" -- fill unknown labels with 0 or 1 probabilistically
-            according to the probability-calibrated model score.
-        """
-        scores = self.scores
-        labels = self.labels
-        weights = self.weights
-        imbalance = self.metrics_dict["imbalance"]
-        null_probs = (
-            self.null_probabilities if self.null_prob_column else self.scores
-        )  # noqa
-
-        # Initialize empty dicts
-        self.metrics_dict_imputed = {}
-        labels_filled = {}
-
-        # Create masked labels array
-        masked_labels = np.ma.array(labels, mask=np.isnan(labels))
-
-        # Probabilistically generate labels according to probability values or
-        # class imb.
-        labels_from_prob = (np.random.rand(*labels.shape) < null_probs).astype(
-            int
-        )  # noqa
-        labels_from_imb = (np.random.rand(*labels.shape) < imbalance).astype(
-            int
-        )  # noqa
-
-        # Fill null labels according to fill method
-        labels_filled["0"] = masked_labels.filled(0)
-        labels_filled["1"] = masked_labels.filled(1)
-        labels_filled["imb"] = masked_labels.filled(labels_from_imb)
-        labels_filled["prob"] = masked_labels.filled(labels_from_prob)
-
-        # Helper function to compute metrics for each null fill method
-        def compute_filled_metrics(fill_method):
-            print(f"null ==> {fill_method}")
-            self.metrics_dict_imputed[fill_method] = self.compute_metrics(
-                scores, labels_filled[fill_method], weights, return_dict=True
+        # Sample input data if too large
+        if len(df_sample) > self.max_num_examples:
+            rng = self._get_rng(-1)
+            seed = int(rng.random() * 2**32)
+            df_sample = df_sample.sample(
+                n=self.max_num_examples,
+                random_state=seed,
             )
-            print("")
 
-        # Compute metrics for each null fill method
-        for method in self.null_fill_methods:
-            compute_filled_metrics(method)
+        # List configurations to compute
+        bootstrap_sample_options = [None, *range(self.num_bootstrap_samples)]
+        null_fill_methods = list(set([None, self.null_fill_method]))
+        all_options = itertools.product(
+            bootstrap_sample_options,
+            null_fill_methods,
+        )
+
+        # Compute metrics
+        curves = pd.DataFrame()
+        scalars = pd.DataFrame()
+        num_workers = psutil.cpu_count()
+        with Pool(num_workers) as pool:
+            for metrics in tqdm(
+                pool.starmap(
+                    self.compute_metrics,
+                    [
+                        (df_sample, *options, self._get_rng(i))
+                        for i, options in enumerate(all_options)
+                    ],
+                )
+            ):
+                curves = pd.concat([curves, metrics.curves])
+                scalars = pd.concat([scalars, metrics.scalars])
+
+        # Separate imputed metrics from default metrics
+        curves_default = curves.loc[curves["_null_fill_method"].isnull()]
+        scalars_default = scalars.loc[scalars["_null_fill_method"].isnull()]
+        curves_imputed = curves.loc[curves["_null_fill_method"].notnull()]
+        scalars_imputed = scalars.loc[scalars["_null_fill_method"].notnull()]
+
+        metrics = MetricsResult(
+            curves=curves_default,
+            scalars=scalars_default,
+            curves_imputed=curves_imputed,
+            scalars_imputed=scalars_imputed,
+        )
+
+        print("Metrics computation complete.")
+
+        # Optional return
+        if return_results:
+            return metrics
+
+        self.metrics = metrics
+
+        return None
 
     def compute_metrics(
         self,
+        predictions_df: pd.DataFrame,
+        bootstrap_sample: Optional[int] = None,
+        null_fill_method: Optional[NullFillMethod] = None,
+        rng: np.random.Generator = default_rng(),
+    ) -> MetricsResult:
+        """Compute metrics for a single bootstrap sample."""
+
+        # Keep or drop nulls
+        if null_fill_method is None:
+            _df = predictions_df.dropna(subset=[self.label_column])
+        else:
+            _df = predictions_df
+
+        # Make a bootstrap
+        if bootstrap_sample is not None:
+            _df = self._make_bootstrap(_df, rng)
+
+        # Impute null labels
+        labels = _df[self.label_column].values
+        if null_fill_method is not None:
+            labels = self._fill_null_labels(
+                labels=labels,
+                null_fill_method=null_fill_method,
+                null_probs=self.null_probabilities,
+                rng=rng,
+            )
+            assert not np.isnan(labels).any()
+
+        # Compute metrics
+        metrics = self._compute_metrics(
+            scores=_df[self.score_column].values,
+            labels=labels,
+            weights=_df[self.weight_column].values if self.weight_column else None,
+            reverse_thresh=self.reverse_thresh,
+        )
+
+        # Attach metadata to output
+        metrics.curves["_bootstrap_sample"] = bootstrap_sample
+        metrics.curves["_null_fill_method"] = null_fill_method
+        metrics.scalars["_bootstrap_sample"] = bootstrap_sample
+        metrics.scalars["_null_fill_method"] = null_fill_method
+
+        return metrics
+
+    def _compute_metrics(
+        self,
         scores: np.ndarray,
         labels: np.ndarray,
-        weights: np.ndarray,
-        return_dict: bool = False,
-    ) -> Optional[Dict[str, Any]]:
-        """Compute the classification curve metrics values.
+        weights: Optional[np.ndarray] = None,
+        reverse_thresh: bool = False,
+    ) -> MetricsResult:
+        """Compute metrics.
 
         Parameters
         ----------
-        scores
-            Numpy array of score values.
-        labels
-            Numpy array of label values.
-        weights
-            Numpy array of weight values.
-        return_dict
-            If True, will return the resulting metrics_dict, otherwise will set
-            result to ``self.metrics_dict``.
+        scores : np.ndarray
+            Array of scores.
+        labels : np.ndarray
+            Binary array of labels. If labels are real-valued, then all values
+            > 0 will be treated as positive examples, and all values <= 0 will
+            be treated as negative examples.
+        weights : Optional[np.ndarray]
+            Array of weights associated with each example.
+        reverse_thresh : bool
+            Boolean indicating whether the score threshold should be treated as
+            a lower bound on "positive" predictions (as is standard) or instead
+            as an upper bound. If ``True``, the threshold behavior will be
+            reversed from standard so that any prediction falling BELOW a score
+            threshold will be marked as positive, with all those falling above
+            the threshold marked as negative.
 
         Returns
         -------
-        metrics
-            Dictionary of classification curve metrics-related values: {
-                "tp": numpy array of true positive values,
-                "fp": numpy array of false positive values,
-                "fn": numpy array of false negative values,
-                "tn": numpy array of true negative values,
-                "tp_w": numpy array of weighted true positive values,
-                "fp_w": numpy array of weighted false positive values,
-                "fn_w": numpy array of weighted false negative values,
-                "tn_w": numpy array of weighted true negative values,
-                "up": [optional] numpy array of unlabeled predicted positive values, # noqa
-                "un": [optional] numpy array of unlabeled predicted negative values,
-                "up_w": [optional] numpy array of unlabeled weighted pred. pos. values,
-                "un_w": [optional] numpy array of unlabeled weighted pred. neg. values,
-                "precision": numpy array of precision values,
-                "f1": numpy array of f1 score values,
-                "tpr": numpy array of recall values,
-                "fpr": numpy array of false-positive rate values,
-                "tpr_w": numpy array of weighted recall values,
-                "fpr_w": numpy array of weighted false-positive rate values,
-                "precision_gain": numpy array of "precision gain" values,
-                "recall_gain": numpy array of "recall gain" values,
-                "frac": numpy array of flag-rate values,
-                "frac_w": numpy array of weighted flag-rate values,
-                "imbalance": class imbalance (positive class size / total data size),
-                "roc_auc": area under the ROC curve,
-                "pr_auc": area under the PR curve,
-                "rf_auc": area under the RF curve,
-                "roc_auc_w": area under the weighted ROC curve,
-                "pr_auc_w": area under the weighted PR curve,
-                "rf_auc_w": area under the weighted RF curve,
-                "thresh": numpy array of score decision threshold values,
-                "pos": number of positive examples,
-                "neg": number of negative examples,
-                "unk": number of unlabeled examples with unknown label,
-                "pos_w": weighted sum of positive examples,
-                "neg_w": weighted sum of negative examples,
-                "unk_w": weighted sum of examples with unknown label,
-                "num_bootstrap_samples": number of bootstrap samples
-            }
+        MetricsResult
+            A class containing the computed metrics.
         """
+        if np.isnan(labels).any():
+            raise ValueError("Labels contain null values.")
 
-        # Compute all metrics
-        confusion_dict = self._compute_confusion_dict(
-            scores, labels, weights, self.thresholds
+        # Put arrays into DataFrame, treating scores as thresholds
+        df = pd.DataFrame(
+            {
+                "thresh": scores,
+                "label": (labels > 0).astype(int),
+                "weight": weights if weights is not None else np.ones(len(scores)),
+            },
         )
-        metrics_dict = self._compute_metrics_dict(confusion_dict)
-        area_metrics_dict = self._compute_area_metrics_dict(metrics_dict)
+        df["weight_pos"] = df["label"] * df["weight"]
 
-        # Populate dictionary of classification curve metrics
-        metrics_dict = {
-            **confusion_dict,
-            **metrics_dict,
-            **area_metrics_dict,
-            "thresh": self.thresholds,
-            "num_bootstrap_samples": self.num_bootstrap_samples,
+        # Collapse identical threshold values, and sort
+        df = (
+            df.groupby("thresh")
+            .agg(
+                label=("label", "sum"),
+                weight=("weight", "sum"),
+                weight_pos=("weight_pos", "sum"),
+                num=("label", "count"),
+            )
+            .reset_index()
+        )
+        df = df.sort_values("thresh", ascending=not reverse_thresh)
+
+        # Compute scalar values
+        _num_examples = df["num"].sum()
+        _num_examples_pos = df["label"].sum()
+        num_examples_pos = _num_examples_pos * self.imbalance_multiplier
+        num_examples_neg = _num_examples - _num_examples_pos
+        num_examples = num_examples_pos + num_examples_neg
+        _tot_weight = df["weight"].sum()
+        _tot_weight_pos = df["weight_pos"].sum()
+        tot_weight_pos = _tot_weight_pos * self.imbalance_multiplier
+        tot_weight_neg = _tot_weight - _tot_weight_pos
+        tot_weight = tot_weight_pos + tot_weight_neg
+        imbalance = num_examples_pos / (num_examples_pos + num_examples_neg)
+
+        # Add extra threshold value
+        epsilon = 1e-6
+        multiplier = 1 if reverse_thresh else -1
+        extra_thresh = df.iloc[0]["thresh"] + multiplier * epsilon
+        extra_row = pd.DataFrame([[extra_thresh, 0, 0, 0, 0]], columns=df.columns)
+        df = pd.concat([extra_row, df]).reset_index(drop=True)
+
+        # Compute confusion matrix
+        df["pred_neg"] = df["num"].cumsum()
+        df["pred_pos"] = _num_examples - df["pred_neg"]
+        df["fn"] = df["label"].cumsum()
+        df["tn"] = df["pred_neg"] - df["fn"]
+        df["tp"] = _num_examples_pos - df["fn"]
+        df["fp"] = _num_examples - df["pred_neg"] - df["tp"]
+        df["pred_pos"] *= self.imbalance_multiplier
+        df["fn"] *= self.imbalance_multiplier
+        df["tp"] *= self.imbalance_multiplier
+
+        df["recall"] = df["tp"] / (df["tp"] + df["fn"])
+        df["precision"] = df["tp"] / (df["tp"] + df["fp"])
+        df["frac"] = df["pred_pos"] / num_examples
+        df["f1"] = 2 * df["precision"] * df["recall"] / (df["precision"] + df["recall"])
+        df["fpr"] = df["fp"] / num_examples_neg
+        df["fdr"] = df["fp"] / (df["fp"] + df["tp"])
+        df["recall_gain"] = self._compute_gain(df["recall"], imbalance)
+        df["precision_gain"] = self._compute_gain(df["precision"], imbalance)
+
+        # Compute weighted confusion matrix
+        df["pred_neg_w"] = df["weight"].cumsum()
+        df["pred_pos_w"] = _tot_weight - df["pred_neg_w"]
+        df["fn_w"] = df["weight_pos"].cumsum()
+        df["tn_w"] = df["pred_neg_w"] - df["fn_w"]
+        df["tp_w"] = _tot_weight_pos - df["fn_w"]
+        df["fp_w"] = _tot_weight - df["pred_neg_w"] - df["tp_w"]
+        df["pred_pos_w"] *= self.imbalance_multiplier
+        df["fn_w"] *= self.imbalance_multiplier
+        df["tp_w"] *= self.imbalance_multiplier
+
+        df["recall_w"] = df["tp_w"] / (df["tp_w"] + df["fn_w"])
+        df["precision_w"] = df["tp_w"] / (df["tp_w"] + df["fp_w"])
+        df["frac_w"] = df["pred_pos_w"] / tot_weight
+        df["fpr_w"] = df["fp_w"] / tot_weight_neg
+        df["fdr_w"] = df["fp_w"] / (df["fp_w"] + df["tp_w"])
+
+        # Fill nulls
+        df.fillna({col: 0 for col in df.columns if col != "label"}, inplace=True)
+
+        # Scalars
+        scalars = {
+            "num_examples": num_examples,
+            "num_examples_pos": num_examples_pos,
+            "num_examples_neg": num_examples_neg,
+            "tot_weight": tot_weight,
+            "tot_weight_pos": tot_weight_pos,
+            "tot_weight_neg": tot_weight_neg,
+            "imbalance": imbalance,
+            "roc_auc": np.abs(trapz(df["recall"], df["fpr"])),
+            "pr_auc": np.abs(trapz(df["precision"], df["recall"])),
+            "rf_auc": np.abs(trapz(df["recall"], df["frac"])),
+            "roc_auc_w": np.abs(trapz(df["recall_w"], df["fpr_w"])),
+            "pr_auc_w": np.abs(trapz(df["precision_w"], df["recall_w"])),
+            "rf_auc_w": np.abs(trapz(df["recall_w"], df["frac_w"])),
+            "prg_auc": np.abs(trapz(df["precision_gain"], df["recall_gain"])),
         }
+        scalars = pd.DataFrame([scalars])
 
-        # Extract single number values from any 1-element arrays
-        for k, v in metrics_dict.items():
-            if type(v) == np.ndarray:
-                if v.size == 1:
-                    metrics_dict[k] = v[0]
+        return MetricsResult(curves=df, scalars=scalars)
 
-        print("Complete.")
+    def _make_bootstrap(
+        self,
+        df: pd.DataFrame,
+        rng: np.random.Generator = default_rng(),
+    ) -> pd.DataFrame:
+        """Make bootstrap sample.
 
-        # Either return the computed metrics dict or set it to
-        # self.metrics_dict
-        if return_dict:
-            return metrics_dict
-        else:
-            self.metrics_dict = metrics_dict
+        Sample with replacement from the input DataFrame to create a bootstrap
+        sample of the same size as the input DataFrame.
+        """
+        random_state = (
+            np.random.RandomState(int(rng.random() * 2**32)) if rng else None
+        )
+        return df.sample(
+            n=len(df),
+            replace=True,
+            random_state=random_state,
+        )
 
-        return None
+    def _fill_null_labels(
+        self,
+        labels: np.ndarray,
+        null_fill_method: NullFillMethod,
+        null_probs: Optional[np.ndarray] = None,
+        rng: np.random.Generator = default_rng(),
+    ) -> np.ndarray:
+        """Fill null labels according to the specified method.
+
+        Parameters
+        ----------
+        labels : np.ndarray
+            Array of labels, some of which may be null.
+        null_fill_method : NullFillMethod
+            Method to use when filling null labels.
+            * "0" -- fill unknown labels with 0.
+            * "1" -- fill unknown labels with 1.
+            * "imb" -- fill unknown labels with 0 or 1 probabilistically
+                according to the class imbalance of the known labels.
+            * "prob" -- fill unknown labels with 0 or 1 probabilistically
+                according to the probability-calibrated model score.
+        null_probs : Optional[np.ndarray]
+            Array of probabilities to use when filling null labels. Only
+            required if ``null_fill_method`` is "prob".
+        """
+        labels = labels.astype(float)
+        imbalance = (labels > 0).sum() / len(labels)
+        if null_fill_method == "0":
+            return np.where(np.isnan(labels), 0, labels)
+        if null_fill_method == "1":
+            return np.where(np.isnan(labels), 1, labels)
+        if null_fill_method == "imb":
+            labels_from_imb = (rng.random(*labels.shape) < imbalance).astype(int)
+            return np.where(np.isnan(labels), labels_from_imb, labels)
+        if null_fill_method == "prob":
+            if null_probs is None:
+                raise ValueError(
+                    "Must provide null_probs when using null_fill_method='prob'."
+                )
+            return np.where(
+                np.isnan(labels),
+                (rng.random(*labels.shape) < null_probs).astype(int),
+                labels,
+            )
+
+    @staticmethod
+    def _compute_gain(
+        metric: np.ndarray,
+        imbalance: float,
+    ) -> np.ndarray:
+        """Compute "gain".
+
+        As defined in the "Precision-Recall-Gain" paper
+        `here <https://papers.nips.cc/paper/2015/file/33e8075e9970de0cfea955afd464\
+        4bb2-Paper.pdf>`_.
+        """
+        return np.clip(
+            (metric - imbalance) / ((1 - imbalance) * metric),
+            a_min=0,
+            a_max=1,
+        )

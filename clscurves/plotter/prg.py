@@ -1,9 +1,9 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-import numpy as np
 from matplotlib import pyplot as plt
 
 from clscurves.plotter.plotter import MetricsPlotter
+from clscurves.utils import MetricsResult
 
 
 class PRGPlotter(MetricsPlotter):
@@ -21,10 +21,10 @@ class PRGPlotter(MetricsPlotter):
 
     def __init__(
         self,
-        metrics_dict: Dict[str, Any],
+        metrics: MetricsResult,
         score_is_probability: bool,
     ) -> None:
-        super().__init__(metrics_dict, score_is_probability)
+        super().__init__(metrics, score_is_probability)
 
     def plot_prg(
         self,
@@ -38,6 +38,7 @@ class PRGPlotter(MetricsPlotter):
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
+        imputed: bool = False,
         op_value: Optional[float] = None,
         return_fig: bool = False,
     ) -> Optional[Tuple[plt.figure, plt.axes]]:
@@ -50,10 +51,10 @@ class PRGPlotter(MetricsPlotter):
         cmap
             Colormap string specification.
         color_by
-            Name of key in metrics_dict that specifies which values to use when
-            coloring points along the PRG curve; this should be either "frac"
-            for fraction of cases flagged or "thresh" for score discrimination
-            threshold.
+            Name of key in metrics.curves that specifies which values to use
+            when coloring points along the PRG curve; this should be either
+            "frac" for fraction of cases flagged or "thresh" for score
+            discrimination threshold.
         cbar_rng
             Specify a color bar range of the form [min_value, max_value] to
             override the default range.
@@ -75,6 +76,8 @@ class PRGPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        imputed
+            Whether to plot imputed curves.
         op_value
             Threshold value to plot a confidence ellipse for when the plot is
             bootstrapped.
@@ -83,38 +86,47 @@ class PRGPlotter(MetricsPlotter):
             plotting the figure.
         """
 
+        # Get metrics
+        curves, scalars = self._get_metrics(imputed=imputed)
+
         # Specify which values to plot in X and Y
-        x_key = "recall_gain"
-        y_key = "precision_gain"
-        x = self.metrics_dict[x_key]
-        y = self.metrics_dict[y_key]
+        x_col = "recall_gain"
+        y_col = "precision_gain"
 
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x[:, 0], y[:, 0], cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x,
-                y,
-                cmap,
-                dpi,
-                color_by,
-                cbar_rng,
-                cbar_label,
-                grid,
-                bootstrap_alpha,
-                bootstrap_color,
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
+                alpha=bootstrap_alpha,
+                bootstrap_color=bootstrap_color,
             )
 
         # Extract PRG AUC
-        auc = self.metrics_dict["prg_auc"]
-        auc = auc[0] if type(auc) == np.ndarray and not bootstrapped else np.mean(auc)
+        scalars = scalars.loc[lambda x: x["_bootstrap_sample"].isnull()]
+        auc = scalars["prg_auc"].iloc[0]
 
         # Extract class imbalance
-        imb = self.metrics_dict["imbalance"]
-        imb = imb[0] if type(imb) == np.ndarray and not bootstrapped else np.mean(imb)
+        imb = scalars["imbalance"].iloc[0]
 
         # Compute the ratio of class sizes
         class_ratio = 1 / (imb + 1e-9) - 1
@@ -146,7 +158,12 @@ class PRGPlotter(MetricsPlotter):
         # Plot 95% confidence ellipse
         if op_value is not None:
             self._add_op_ellipse(
-                op_value=op_value, x_key=x_key, y_key=y_key, ax=ax, thresh_key=color_by
+                curves=curves,
+                op_value=op_value,
+                x_col=x_col,
+                y_col=y_col,
+                ax=ax,
+                thresh_key=color_by,
             )
 
         # Set labels
