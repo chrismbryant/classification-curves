@@ -277,8 +277,13 @@ class MetricsGenerator(
     ) -> MetricsResult:
         """Compute metrics for a single bootstrap sample."""
 
+        # Keep or drop nulls
+        if null_fill_method is None:
+            _df = predictions_df.dropna(subset=[self.label_column])
+        else:
+            _df = predictions_df
+
         # Make a bootstrap
-        _df = predictions_df
         if bootstrap_sample is not None:
             _df = self._make_bootstrap(_df, rng)
 
@@ -291,6 +296,7 @@ class MetricsGenerator(
                 null_probs=self.null_probabilities,
                 rng=rng,
             )
+            assert not np.isnan(labels).any()
 
         # Compute metrics
         metrics = self._compute_metrics(
@@ -340,6 +346,8 @@ class MetricsGenerator(
         MetricsResult
             A class containing the computed metrics.
         """
+        if np.isnan(labels).any():
+            raise ValueError("Labels contain null values.")
 
         # Put arrays into DataFrame, treating scores as thresholds
         df = pd.DataFrame(
@@ -489,21 +497,22 @@ class MetricsGenerator(
             Array of probabilities to use when filling null labels. Only
             required if ``null_fill_method`` is "prob".
         """
+        labels = labels.astype(float)
         imbalance = (labels > 0).sum() / len(labels)
         if null_fill_method == "0":
-            return np.where(labels == np.nan, 0, labels)
+            return np.where(np.isnan(labels), 0, labels)
         if null_fill_method == "1":
-            return np.where(labels == np.nan, 1, labels)
+            return np.where(np.isnan(labels), 1, labels)
         if null_fill_method == "imb":
             labels_from_imb = (rng.random(*labels.shape) < imbalance).astype(int)
-            return np.where(labels == np.nan, labels_from_imb, labels)
+            return np.where(np.isnan(labels), labels_from_imb, labels)
         if null_fill_method == "prob":
             if null_probs is None:
                 raise ValueError(
                     "Must provide null_probs when using null_fill_method='prob'."
                 )
             return np.where(
-                labels == np.nan,
+                np.isnan(labels),
                 (rng.random(*labels.shape) < null_probs).astype(int),
                 labels,
             )
