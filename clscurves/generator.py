@@ -108,7 +108,7 @@ class MetricsGenerator(
             threshold will be marked as positive, with all those falling above
             the threshold marked as negative.
         imbalance_multiplier : float
-            Positive value to artifically increase the negative class example
+            Positive value to artifically increase the positive class example
             count by a multiplicative weighting factor. Use this if you're
             generating metrics for a data distribution with a class imbalance
             that doesn't represent the true distribution in the wild. For
@@ -365,15 +365,15 @@ class MetricsGenerator(
         df = df.sort_values("thresh", ascending=not reverse_thresh)
 
         # Compute scalar values
-        num_examples_pos = df["label"].sum()
-        num_examples_neg = (
-            df["num"].sum() - num_examples_pos
-        ) * self.imbalance_multiplier
+        _num_examples = df["num"].sum()
+        _num_examples_pos = df["label"].sum()
+        num_examples_pos = _num_examples_pos * self.imbalance_multiplier
+        num_examples_neg = _num_examples - _num_examples_pos
         num_examples = num_examples_pos + num_examples_neg
-        tot_weight_pos = df["weight_pos"].sum()
-        tot_weight_neg = (
-            df["weight"].sum() - tot_weight_pos
-        ) * self.imbalance_multiplier
+        _tot_weight = df["weight"].sum()
+        _tot_weight_pos = df["weight_pos"].sum()
+        tot_weight_pos = _tot_weight_pos * self.imbalance_multiplier
+        tot_weight_neg = _tot_weight - _tot_weight_pos
         tot_weight = tot_weight_pos + tot_weight_neg
         imbalance = num_examples_pos / (num_examples_pos + num_examples_neg)
 
@@ -386,13 +386,15 @@ class MetricsGenerator(
 
         # Compute confusion matrix
         df["pred_neg"] = df["num"].cumsum()
-        df["pred_pos"] = num_examples - df["pred_neg"]
+        df["pred_pos"] = _num_examples - df["pred_neg"]
         df["fn"] = df["label"].cumsum()
         df["tn"] = df["pred_neg"] - df["fn"]
-        df["tp"] = num_examples_pos - df["fn"]
-        df["fp"] = (
-            num_examples - df["pred_neg"] - df["tp"]
-        ) * self.imbalance_multiplier
+        df["tp"] = _num_examples_pos - df["fn"]
+        df["fp"] = _num_examples - df["pred_neg"] - df["tp"]
+        df["pred_pos"] *= self.imbalance_multiplier
+        df["fn"] *= self.imbalance_multiplier
+        df["tp"] *= self.imbalance_multiplier
+
         df["recall"] = df["tp"] / (df["tp"] + df["fn"])
         df["precision"] = df["tp"] / (df["tp"] + df["fp"])
         df["frac"] = df["pred_pos"] / num_examples
@@ -404,13 +406,15 @@ class MetricsGenerator(
 
         # Compute weighted confusion matrix
         df["pred_neg_w"] = df["weight"].cumsum()
-        df["pred_pos_w"] = tot_weight - df["pred_neg_w"]
+        df["pred_pos_w"] = _tot_weight - df["pred_neg_w"]
         df["fn_w"] = df["weight_pos"].cumsum()
         df["tn_w"] = df["pred_neg_w"] - df["fn_w"]
-        df["tp_w"] = tot_weight_pos - df["fn_w"]
-        df["fp_w"] = (
-            tot_weight - df["pred_neg_w"] - df["tp_w"]
-        ) * self.imbalance_multiplier
+        df["tp_w"] = _tot_weight_pos - df["fn_w"]
+        df["fp_w"] = _tot_weight - df["pred_neg_w"] - df["tp_w"]
+        df["pred_pos_w"] *= self.imbalance_multiplier
+        df["fn_w"] *= self.imbalance_multiplier
+        df["tp_w"] *= self.imbalance_multiplier
+
         df["recall_w"] = df["tp_w"] / (df["tp_w"] + df["fn_w"])
         df["precision_w"] = df["tp_w"] / (df["tp_w"] + df["fp_w"])
         df["frac_w"] = df["pred_pos_w"] / tot_weight
