@@ -38,6 +38,7 @@ class PRGPlotter(MetricsPlotter):
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
+        imputed: bool = False,
         op_value: Optional[float] = None,
         return_fig: bool = False,
     ) -> Optional[Tuple[plt.figure, plt.axes]]:
@@ -75,6 +76,8 @@ class PRGPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        imputed
+            Whether to plot imputed curves.
         op_value
             Threshold value to plot a confidence ellipse for when the plot is
             bootstrapped.
@@ -83,6 +86,9 @@ class PRGPlotter(MetricsPlotter):
             plotting the figure.
         """
 
+        # Get metrics
+        curves, scalars = self._get_metrics(imputed=imputed)
+
         # Specify which values to plot in X and Y
         x_col = "recall_gain"
         y_col = "precision_gain"
@@ -90,24 +96,33 @@ class PRGPlotter(MetricsPlotter):
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x_col, y_col, cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x_col,
-                y_col,
-                cmap,
-                dpi,
-                color_by,
-                cbar_rng,
-                cbar_label,
-                grid,
-                bootstrap_alpha,
-                bootstrap_color,
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
+                alpha=bootstrap_alpha,
+                bootstrap_color=bootstrap_color,
             )
 
         # Extract PRG AUC
-        scalars = self.metrics.scalars.loc[lambda x: x["_bootstrap_sample"].isnull()]
+        scalars = scalars.loc[lambda x: x["_bootstrap_sample"].isnull()]
         auc = scalars["prg_auc"].iloc[0]
 
         # Extract class imbalance
@@ -143,7 +158,12 @@ class PRGPlotter(MetricsPlotter):
         # Plot 95% confidence ellipse
         if op_value is not None:
             self._add_op_ellipse(
-                op_value=op_value, x_col=x_col, y_col=y_col, ax=ax, thresh_key=color_by
+                curves=curves,
+                op_value=op_value,
+                x_col=x_col,
+                y_col=y_col,
+                ax=ax,
+                thresh_key=color_by,
             )
 
         # Set labels

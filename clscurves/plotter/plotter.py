@@ -28,6 +28,7 @@ class MetricsPlotter(MetricsAliases):
 
     def _add_op_ellipse(
         self,
+        curves: pd.DataFrame,
         op_value: float,
         x_col: str,
         y_col: str,
@@ -39,15 +40,17 @@ class MetricsPlotter(MetricsAliases):
 
         Parameters
         ----------
-        op_value
+        curves : pd.DataFrame
+            metrics.curves DataFrame.
+        op_value : float
             Threshold operating value.
-        x_col
+        x_col : str
             metrics.curves key used in plot x axis.
-        y_col
+        y_col : str
             metrics.curves key used in plot y axis.
-        ax
+        ax : plt.axes
             Matplotlib axis object.
-        thresh_key
+        thresh_key : str
             metrics.curves key used for coloring (default: "thresh").
         """
 
@@ -59,9 +62,9 @@ class MetricsPlotter(MetricsAliases):
             return df.iloc[0]
 
         # Get operating point coordinates for each bootstrapped sample
-        op_points = self.metrics.curves.groupby(
-            "_bootstrap_sample", dropna=False
-        ).apply(find_op_point)
+        op_points = curves.groupby("_bootstrap_sample", dropna=False).apply(
+            find_op_point
+        )
         op_data = op_points[[x_col, y_col]].values.T
 
         # Compute covariance ellipse and add to ax
@@ -74,6 +77,7 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_plot(
         self,
+        curves: pd.DataFrame,
         x_col: str,
         y_col: str,
         cmap: str,
@@ -90,7 +94,7 @@ class MetricsPlotter(MetricsAliases):
         """
 
         # Get non-bootstrapped data
-        curves = self.metrics.curves.loc[lambda x: x["_bootstrap_sample"].isnull()]
+        curves = curves.loc[lambda x: x["_bootstrap_sample"].isnull()]
 
         # Create figure
         if not ax:
@@ -137,6 +141,7 @@ class MetricsPlotter(MetricsAliases):
 
     def _make_bootstrap_plot(
         self,
+        curves: pd.DataFrame,
         x_col: str,
         y_col: str,
         cmap: str,
@@ -161,11 +166,11 @@ class MetricsPlotter(MetricsAliases):
         ax.set_ylim(0, 1)
 
         # Plot faint bootstrapped curves
-        num_bootstrap_samples = self.metrics.curves["_bootstrap_sample"].nunique() - 1
+        num_bootstrap_samples = curves["_bootstrap_sample"].nunique() - 1
         for i in range(num_bootstrap_samples):
             ax.plot(
-                self.metrics.curves.loc[lambda x: x["_bootstrap_sample"] == i, x_col],
-                self.metrics.curves.loc[lambda x: x["_bootstrap_sample"] == i, y_col],
+                curves.loc[lambda x: x["_bootstrap_sample"] == i, x_col],
+                curves.loc[lambda x: x["_bootstrap_sample"] == i, y_col],
                 alpha=alpha,
                 color=bootstrap_color,
                 linewidth=1,
@@ -173,7 +178,28 @@ class MetricsPlotter(MetricsAliases):
 
         # Plot main colored curve (scatter plot) with color bar
         fig, ax = self._make_plot(
-            x_col, y_col, cmap, dpi, color_by, cbar_rng, cbar_label, grid, fig, ax
+            curves=curves,
+            x_col=x_col,
+            y_col=y_col,
+            cmap=cmap,
+            dpi=dpi,
+            color_by=color_by,
+            cbar_rng=cbar_rng,
+            cbar_label=cbar_label,
+            grid=grid,
+            fig=fig,
+            ax=ax,
         )
 
         return fig, ax
+
+    def _get_metrics(
+        self,
+        imputed: bool = False,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """A helper function to get the metrics curves and scalars DataFrames
+        for plotting.
+        """
+        curves = self.metrics.curves_imputed if imputed else self.metrics.curves
+        scalars = self.metrics.scalars_imputed if imputed else self.metrics.scalars
+        return curves, scalars

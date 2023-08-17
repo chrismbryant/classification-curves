@@ -53,6 +53,7 @@ class CostPlotter(MetricsPlotter):
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
+        imputed: bool = False,
         return_fig: bool = False,
     ) -> Optional[Tuple[plt.figure, plt.axes]]:
         """Plot the "Misclassification Cost" curve.
@@ -105,6 +106,8 @@ class CostPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        imputed
+            Whether to plot imputed curves.
         return_fig
             If set to True, will return (fig, ax) as a tuple instead of
             plotting the figure.
@@ -117,8 +120,11 @@ class CostPlotter(MetricsPlotter):
         if "cost" not in self.metrics.curves.columns:
             raise ValueError("Run `compute_cost` first.")
 
+        # Get metrics
+        curves, _ = self._get_metrics(imputed=imputed)
+
         # Get non-bootstrapped data
-        curves = self.metrics.curves.loc[lambda x: x["_bootstrap_sample"].isnull()]
+        curves_main = curves.loc[lambda x: x["_bootstrap_sample"].isnull()]
 
         # Create figure
         fig = plt.figure(figsize=(10, 6), dpi=dpi)
@@ -126,7 +132,7 @@ class CostPlotter(MetricsPlotter):
         ax.grid(grid)
 
         # Make color bar
-        color = curves[color_by]
+        color = curves_main[color_by]
         if cbar_rng is not None:
             [vmin, vmax] = cbar_rng
         else:
@@ -140,8 +146,8 @@ class CostPlotter(MetricsPlotter):
         cbar.set_label("Fraction Flagged" if color_by == "frac" else label)
 
         # Make scatter plot
-        cost = curves["cost"]
-        x = curves[x_col]
+        cost = curves_main["cost"]
+        x = curves_main[x_col]
 
         # Make main colored scatter plot
         ax.scatter(
@@ -159,16 +165,10 @@ class CostPlotter(MetricsPlotter):
 
         # Plot faint bootstrapped curves
         if bootstrapped:
-            num_bootstrap_samples = (
-                self.metrics.curves["_bootstrap_sample"].nunique() - 1
-            )
+            num_bootstrap_samples = curves["_bootstrap_sample"].nunique() - 1
             for i in range(num_bootstrap_samples):
-                cost_boot = self.metrics.curves.loc[
-                    lambda x: x["_bootstrap_sample"] == i, "cost"
-                ]
-                x_vals = self.metrics.curves.loc[
-                    lambda x: x["_bootstrap_sample"] == i, x_col
-                ]
+                cost_boot = curves.loc[lambda x: x["_bootstrap_sample"] == i, "cost"]
+                x_vals = curves.loc[lambda x: x["_bootstrap_sample"] == i, x_col]
                 ax.plot(
                     np.log10(x_vals) if log_scale else x_vals,
                     cost_boot,

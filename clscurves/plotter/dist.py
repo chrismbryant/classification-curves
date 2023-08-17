@@ -38,6 +38,7 @@ class DistPlotter(MetricsPlotter):
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
+        imputed: bool = False,
         return_fig: bool = False,
     ) -> Optional[Tuple[plt.figure, plt.axes]]:
         """Plot the data distribution.
@@ -94,6 +95,8 @@ class DistPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        imputed
+            Whether to plot imputed curves.
         return_fig
             If set to True, will return (fig, ax) as a tuple instead of
             plotting the figure.
@@ -108,10 +111,13 @@ class DistPlotter(MetricsPlotter):
         kind = kind.lower()
         assert kind in ["cdf", "pdf"], '`kind` must be "cdf" or "pdf"'
 
+        # Get metrics
+        curves, _ = self._get_metrics(imputed=imputed)
+
         # Compute CDF
         _w = "_w" if weighted else ""
         if label == "all":
-            cdf = 1 - self.metrics.curves["frac" + _w]
+            cdf = 1 - curves["frac" + _w]
         else:
             raise NotImplementedError("TODO: Implement label=None case.")
 
@@ -119,7 +125,7 @@ class DistPlotter(MetricsPlotter):
         if self.reverse_thresh:
             cdf = 1 - cdf
 
-        self.metrics.curves["_cdf"] = cdf
+        curves["_cdf"] = cdf
         x_col = "thresh"
         y_col = "_cdf"
 
@@ -128,20 +134,29 @@ class DistPlotter(MetricsPlotter):
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x_col, y_col, cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x_col,
-                y_col,
-                cmap,
-                dpi,
-                color_by,
-                cbar_rng,
-                cbar_label,
-                grid,
-                bootstrap_alpha,
-                bootstrap_color,
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
+                alpha=bootstrap_alpha,
+                bootstrap_color=bootstrap_color,
             )
 
         # Change x-axis range

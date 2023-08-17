@@ -27,6 +27,7 @@ class PRPlotter(MetricsPlotter):
         bootstrapped: bool = False,
         bootstrap_alpha: float = 0.15,
         bootstrap_color: str = "black",
+        imputed: bool = False,
         f1_contour: bool = False,
         grid: bool = True,
         op_value: Optional[float] = None,
@@ -73,6 +74,8 @@ class PRPlotter(MetricsPlotter):
             Opacity of bootstrap curves.
         bootstrap_color
             Color of bootstrap curves.
+        imputed
+            Whether to plot imputed curves.
         f1_contour
             Whether to include reference contours for curves of constant F1.
         grid
@@ -85,6 +88,9 @@ class PRPlotter(MetricsPlotter):
             plotting the figure.
         """
 
+        # Get metrics
+        curves, scalars = self._get_metrics(imputed=imputed)
+
         # Specify which values to plot in X and Y
         x_col = "recall_w" if weighted else "recall"
         y_col = "precision"
@@ -92,20 +98,29 @@ class PRPlotter(MetricsPlotter):
         # Make plot
         if not bootstrapped:
             fig, ax = self._make_plot(
-                x_col, y_col, cmap, dpi, color_by, cbar_rng, cbar_label, grid
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
             )
         else:
             fig, ax = self._make_bootstrap_plot(
-                x_col,
-                y_col,
-                cmap,
-                dpi,
-                color_by,
-                cbar_rng,
-                cbar_label,
-                grid,
-                bootstrap_alpha,
-                bootstrap_color,
+                curves=curves,
+                x_col=x_col,
+                y_col=y_col,
+                cmap=cmap,
+                dpi=dpi,
+                color_by=color_by,
+                cbar_rng=cbar_rng,
+                cbar_label=cbar_label,
+                grid=grid,
+                alpha=bootstrap_alpha,
+                bootstrap_color=bootstrap_color,
             )
 
         # Plot F1 contour curves
@@ -136,9 +151,9 @@ class PRPlotter(MetricsPlotter):
                 )
 
         # Extract class imbalance
-        imb = self.metrics.scalars.loc[lambda x: x["_bootstrap_sample"].isnull()][
-            "imbalance"
-        ].iloc[0]
+        imb = scalars.loc[lambda x: x["_bootstrap_sample"].isnull()]["imbalance"].iloc[
+            0
+        ]
 
         # Plot line of randomness
         ax.plot([0, 1], [imb, imb], "k-")
@@ -160,7 +175,12 @@ class PRPlotter(MetricsPlotter):
         # Plot 95% confidence ellipse
         if op_value is not None:
             self._add_op_ellipse(
-                op_value=op_value, x_col=x_col, y_col=y_col, ax=ax, thresh_key=color_by
+                curves=curves,
+                op_value=op_value,
+                x_col=x_col,
+                y_col=y_col,
+                ax=ax,
+                thresh_key=color_by,
             )
 
         # Set labels
