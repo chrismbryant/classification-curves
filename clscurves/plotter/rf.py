@@ -160,7 +160,7 @@ class RFPlotter(MetricsPlotter):
 
         # Rescale x axis
         if scale != 1.0:
-            ax.set_xlim([0, scale])
+            ax.set_xlim(0, scale)
             ax.set_aspect(scale)
             ax.texts[0].set_visible(False)
 

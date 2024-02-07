@@ -103,6 +103,7 @@ class MetricsPlotter(MetricsAliases):
             ax.grid(grid)
             ax.set_xlim(0, 1)
             ax.set_ylim(0, 1)
+        assert ax is not None
 
         # Make Color Bar
         color = curves[color_by]

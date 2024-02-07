@@ -161,13 +161,13 @@ class DistPlotter(MetricsPlotter):
 
         # Change x-axis range
         if x_rng:
-            ax.set_xlim(x_rng)
+            ax.set_xlim(*x_rng)
 
         # Log scale x-axis
         if log_scale:
             ax.set_xscale("log")
             if self.score_is_probability:
-                ax.set_xlim([0, 1] if x_rng else x_rng)
+                ax.set_xlim([0, 1] if x_rng is None else x_rng)
 
         # Change y-axis range
         if y_rng:
