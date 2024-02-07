@@ -31,7 +31,7 @@ class RFPlotter(MetricsPlotter):
         imputed: bool = False,
         op_value: Optional[float] = None,
         return_fig: bool = False,
-    ) -> Optional[Tuple[plt.figure, plt.axes]]:
+    ) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """Plot the RF (Recall & Fraction Flagged) curve.
 
         Parameters

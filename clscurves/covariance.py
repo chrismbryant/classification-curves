@@ -90,7 +90,7 @@ class CovarianceEllipseGenerator:
         conf: float = 0.95,
         color: str = "black",
         alpha: float = 0.2,
-        ax: Optional[plt.axes] = None,
+        ax: Optional[plt.Axes] = None,
     ) -> patches.Ellipse:
         """Create covariance ellipse Matplotlib patch.
 
@@ -139,7 +139,7 @@ class CovarianceEllipseGenerator:
 
         return self.ellipse_patch
 
-    def add_ellipse_center(self, ax: plt.axes):
+    def add_ellipse_center(self, ax: plt.Axes):
         """Add covariance ellipse patch to existing plot.
 
         Given an input Matplotlib axis object, add an opaque white dot at

@@ -55,7 +55,7 @@ class CostPlotter(MetricsPlotter):
         bootstrap_color: str = "black",
         imputed: bool = False,
         return_fig: bool = False,
-    ) -> Optional[Tuple[plt.figure, plt.axes]]:
+    ) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """Plot the "Misclassification Cost" curve.
 
         Note: `compute_cost` must be run first to obtain cost values.
@@ -114,7 +114,7 @@ class CostPlotter(MetricsPlotter):
 
         Returns
         -------
-        Optional[Tuple[plt.figure, plt.axes]]
+        Optional[Tuple[plt.Figure, plt.Axes]]
             The plot's figure and axis object.
         """
         if "cost" not in self.metrics.curves.columns:
