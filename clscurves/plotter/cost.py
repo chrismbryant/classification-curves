@@ -141,7 +141,7 @@ class CostPlotter(MetricsPlotter):
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
-        cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))
+        cbar = fig.colorbar(sm, ax=ax, ticks=np.linspace(vmin, vmax, 11))
         label = "Threshold Value" if cbar_label is None else cbar_label
         cbar.set_label("Fraction Flagged" if color_by == "frac" else label)
 

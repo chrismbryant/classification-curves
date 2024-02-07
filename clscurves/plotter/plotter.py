@@ -115,7 +115,7 @@ class MetricsPlotter(MetricsAliases):
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
-        cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))  # type: ignore
+        cbar = fig.colorbar(sm, ax=ax, ticks=np.linspace(vmin, vmax, 11))  # type: ignore
         default_cbar_label = (
             self.cbar_dict[color_by] if color_by in self.cbar_dict else "Value"
         )
