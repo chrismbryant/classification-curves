@@ -103,7 +103,6 @@ class MetricsPlotter(MetricsAliases):
             ax.grid(grid)
             ax.set_xlim(0, 1)
             ax.set_ylim(0, 1)
-        assert ax is not None
 
         # Make Color Bar
         color = curves[color_by]
@@ -138,7 +137,7 @@ class MetricsPlotter(MetricsAliases):
             zorder=int(1e4),
         )
 
-        return fig, ax
+        return fig, ax  # type: ignore
 
     def _make_bootstrap_plot(
         self,

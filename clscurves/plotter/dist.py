@@ -167,11 +167,12 @@ class DistPlotter(MetricsPlotter):
         if log_scale:
             ax.set_xscale("log")
             if self.score_is_probability:
-                ax.set_xlim([0, 1] if x_rng is None else x_rng)
+                x_rng = [0, 1] if x_rng is None else x_rng
+                ax.set_xlim(*x_rng)
 
         # Change y-axis range
         if y_rng:
-            ax.set_ylim(y_rng)
+            ax.set_ylim(*y_rng)
 
         # Set aspect ratio
         x_size = x_rng[1] - x_rng[0] if x_rng else 1
