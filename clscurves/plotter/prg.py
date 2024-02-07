@@ -41,7 +41,7 @@ class PRGPlotter(MetricsPlotter):
         imputed: bool = False,
         op_value: Optional[float] = None,
         return_fig: bool = False,
-    ) -> Optional[Tuple[plt.figure, plt.axes]]:
+    ) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """Plot the PRG (Precision-Recall-Gain) curve.
 
         Parameters

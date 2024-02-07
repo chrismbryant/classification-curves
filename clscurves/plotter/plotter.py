@@ -32,7 +32,7 @@ class MetricsPlotter(MetricsAliases):
         op_value: float,
         x_col: str,
         y_col: str,
-        ax: plt.axes,
+        ax: plt.Axes,
         thresh_key: str = "thresh",
     ) -> None:
         """A helper function to add a confidence ellipse to an metrics plot
@@ -48,7 +48,7 @@ class MetricsPlotter(MetricsAliases):
             metrics.curves key used in plot x axis.
         y_col : str
             metrics.curves key used in plot y axis.
-        ax : plt.axes
+        ax : plt.Axes
             Matplotlib axis object.
         thresh_key : str
             metrics.curves key used for coloring (default: "thresh").
@@ -86,9 +86,9 @@ class MetricsPlotter(MetricsAliases):
         cbar_rng: Optional[List[float]],
         cbar_label: Optional[str],
         grid: bool,
-        fig: Optional[plt.figure] = None,
-        ax: Optional[plt.axes] = None,
-    ) -> Tuple[plt.figure, plt.axes]:
+        fig: Optional[plt.Figure] = None,
+        ax: Optional[plt.Axes] = None,
+    ) -> Tuple[plt.Figure, plt.Axes]:
         """A helper function to create a base Matplotlib scatter plot figure
         for metrics-related plotting.
         """
@@ -115,7 +115,7 @@ class MetricsPlotter(MetricsAliases):
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
-        cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))  # type: ignore
+        cbar = fig.colorbar(sm, ax=ax, ticks=np.linspace(vmin, vmax, 11))  # type: ignore
         default_cbar_label = (
             self.cbar_dict[color_by] if color_by in self.cbar_dict else "Value"
         )
@@ -137,7 +137,7 @@ class MetricsPlotter(MetricsAliases):
             zorder=int(1e4),
         )
 
-        return fig, ax
+        return fig, ax  # type: ignore
 
     def _make_bootstrap_plot(
         self,
@@ -152,7 +152,7 @@ class MetricsPlotter(MetricsAliases):
         grid: bool,
         alpha: float,
         bootstrap_color: str,
-    ) -> Tuple[plt.figure, plt.axes]:
+    ) -> Tuple[plt.Figure, plt.Axes]:
         """A helper function to add faint bootstrapped reference curves to an
         metrics plot to visualize the confidence we have in the main metrics
         curve.

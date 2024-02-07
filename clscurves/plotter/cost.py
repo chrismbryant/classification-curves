@@ -55,7 +55,7 @@ class CostPlotter(MetricsPlotter):
         bootstrap_color: str = "black",
         imputed: bool = False,
         return_fig: bool = False,
-    ) -> Optional[Tuple[plt.figure, plt.axes]]:
+    ) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """Plot the "Misclassification Cost" curve.
 
         Note: `compute_cost` must be run first to obtain cost values.
@@ -114,7 +114,7 @@ class CostPlotter(MetricsPlotter):
 
         Returns
         -------
-        Optional[Tuple[plt.figure, plt.axes]]
+        Optional[Tuple[plt.Figure, plt.Axes]]
             The plot's figure and axis object.
         """
         if "cost" not in self.metrics.curves.columns:
@@ -141,7 +141,7 @@ class CostPlotter(MetricsPlotter):
         norm = matplotlib.colors.Normalize(vmin, vmax)
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(np.array([]))
-        cbar = fig.colorbar(sm, ticks=np.linspace(vmin, vmax, 11))
+        cbar = fig.colorbar(sm, ax=ax, ticks=np.linspace(vmin, vmax, 11))
         label = "Threshold Value" if cbar_label is None else cbar_label
         cbar.set_label("Fraction Flagged" if color_by == "frac" else label)
 

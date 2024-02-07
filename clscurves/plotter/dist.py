@@ -40,7 +40,7 @@ class DistPlotter(MetricsPlotter):
         bootstrap_color: str = "black",
         imputed: bool = False,
         return_fig: bool = False,
-    ) -> Optional[Tuple[plt.figure, plt.axes]]:
+    ) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """Plot the data distribution.
 
         This plots either the CDF (Cumulative Distribution Function) or PDF
@@ -103,7 +103,7 @@ class DistPlotter(MetricsPlotter):
 
         Returns
         -------
-        Optional[Tuple[plt.figure, plt.axes]]
+        Optional[Tuple[plt.Figure, plt.Axes]]
             The plot's figure and axis object.
         """
         assert label in ["all", 0, 1, None], '`label` must be in ["all", 0, 1, None]'
@@ -161,17 +161,18 @@ class DistPlotter(MetricsPlotter):
 
         # Change x-axis range
         if x_rng:
-            ax.set_xlim(x_rng)
+            ax.set_xlim(*x_rng)
 
         # Log scale x-axis
         if log_scale:
             ax.set_xscale("log")
             if self.score_is_probability:
-                ax.set_xlim([0, 1] if x_rng else x_rng)
+                x_rng = [0, 1] if x_rng is None else x_rng
+                ax.set_xlim(*x_rng)
 
         # Change y-axis range
         if y_rng:
-            ax.set_ylim(y_rng)
+            ax.set_ylim(*y_rng)
 
         # Set aspect ratio
         x_size = x_rng[1] - x_rng[0] if x_rng else 1
@@ -201,8 +202,8 @@ class DistPlotter(MetricsPlotter):
 
         return None
 
-    def plot_pdf(self, **kwargs) -> Optional[Tuple[plt.figure, plt.axes]]:
+    def plot_pdf(self, **kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         return self.plot_dist(kind="pdf", **kwargs)
 
-    def plot_cdf(self, **kwargs) -> Optional[Tuple[plt.figure, plt.axes]]:
+    def plot_cdf(self, **kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         return self.plot_dist(kind="cdf", **kwargs)

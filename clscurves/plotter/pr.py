@@ -32,7 +32,7 @@ class PRPlotter(MetricsPlotter):
         grid: bool = True,
         op_value: Optional[float] = None,
         return_fig: bool = False,
-    ) -> Optional[Tuple[plt.figure, plt.axes]]:
+    ) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """Plot the PR (Precision & Recall) curve.
 
         Parameters
