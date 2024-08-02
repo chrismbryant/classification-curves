@@ -10,9 +10,9 @@ from clscurves.binomial_ci import BinomialCI
 
 
 def assess_prob_calibration(
-    pred_df: pd.DataFrame,
-    probability_col: str = "prob",
-    label_col: str = "label",
+    predictions_df: pd.DataFrame,
+    label_column: str = "label",
+    score_column: str = "prob",
 ) -> pd.DataFrame:
     """Compute probability calibration metrics.
 
@@ -21,34 +21,36 @@ def assess_prob_calibration(
 
     Parameters
     ----------
-    pred_df : pd.DataFrame
+    predictions_df : pd.DataFrame
         DataFrame containing predictions and labels.
-    probability_col : str, optional
-        Column name for the predicted probabilities, by default "prob".
-    label_col : str, optional
+    label_column : str, optional
         Column name for the true labels, by default "label".
+    score_column : str, optional
+        Column name for the predicted probabilities, by default "prob".
     """
 
-    pred_df["quantile"] = pred_df[probability_col].rank() / len(pred_df)
-    pred_df["quantile_bucket"] = pred_df["quantile"].round(2)
-    pred_df["score_bucket"] = pred_df[probability_col].round(2)
+    predictions_df["quantile"] = predictions_df[score_column].rank() / len(
+        predictions_df
+    )
+    predictions_df["quantile_bucket"] = predictions_df["quantile"].round(2)
+    predictions_df["score_bucket"] = predictions_df[score_column].round(2)
 
     score_prob_calibration = (
-        pred_df.groupby("score_bucket")
+        predictions_df.groupby("score_bucket")
         .agg(
-            avg_prediction=(probability_col, "mean"),
-            num_actual_pos=(label_col, "sum"),
-            num_examples=(label_col, "count"),
+            avg_prediction=(score_column, "mean"),
+            num_actual_pos=(label_column, "sum"),
+            num_examples=(label_column, "count"),
         )
         .reset_index()
     )
 
     quantile_prob_calibration = (
-        pred_df.groupby("quantile_bucket")
+        predictions_df.groupby("quantile_bucket")
         .agg(
-            avg_prediction=(probability_col, "mean"),
-            num_actual_pos=(label_col, "sum"),
-            num_examples=(label_col, "count"),
+            avg_prediction=(score_column, "mean"),
+            num_actual_pos=(label_column, "sum"),
+            num_examples=(label_column, "count"),
         )
         .reset_index()
     )
@@ -169,9 +171,9 @@ def plot_probability_calibration(
 
 
 def plot_predictions(
-    df: pd.DataFrame,
-    pred_col: str = "pred",
-    label_col: str = "label",
+    predictions_df: pd.DataFrame,
+    label_column: str = "label",
+    score_column: str = "pred",
     dpi: Optional[int] = None,
     color: str = "tab:blue",
     title: str = "Quantity Predictions",
@@ -192,11 +194,11 @@ def plot_predictions(
 
     Parameters
     ----------
-    df : pd.DataFrame
+    predictions_df : pd.DataFrame
         DataFrame containing predictions and labels.
-    pred_col : str, optional
+    score_column : str, optional
         Column name for the predicted values, by default "pred".
-    label_col : str, optional
+    label_column : str, optional
         Column name for the true labels, by default "label".
     dpi : int, optional
         Dots per inch for the plot, by default None.
@@ -241,15 +243,15 @@ def plot_predictions(
     ax.grid(True, alpha=0.5)
 
     # Gaussian jitter
-    x_jitter = np.random.normal(0, x_jitter, len(df))
-    y_jitter = np.random.normal(0, y_jitter, len(df))
+    x_jitter = np.random.normal(0, x_jitter, len(predictions_df))
+    y_jitter = np.random.normal(0, y_jitter, len(predictions_df))
 
     if log_scale:
-        x = df[pred_col] * (1 + x_jitter)
-        y = df[label_col] * (1 + y_jitter)
+        x = predictions_df[score_column] * (1 + x_jitter)
+        y = predictions_df[label_column] * (1 + y_jitter)
     else:
-        x = df[pred_col] + x_jitter
-        y = df[label_col] + y_jitter
+        x = predictions_df[score_column] + x_jitter
+        y = predictions_df[label_column] + y_jitter
 
     if scatter_density:
         norm = mpl.colors.Normalize(0, vmax)
@@ -271,16 +273,22 @@ def plot_predictions(
         ax.plot([x_rng[0], x_rng[1]], [x_rng[0], x_rng[1]], "k-")
 
     # Include R2, RMSE, and QI as text in plot
-    df["lit_0"] = 0
-    r2 = sklearn.metrics.r2_score(df[label_col], df[pred_col])
-    rmse = np.sqrt(sklearn.metrics.mean_squared_error(df[label_col], df[pred_col]))
-    rmsle = np.sqrt(
-        sklearn.metrics.mean_squared_log_error(
-            df[[label_col, "lit_0"]].max(axis=1),
-            df[[pred_col, "lit_0"]].max(axis=1),
+    predictions_df["lit_0"] = 0
+    r2 = sklearn.metrics.r2_score(
+        predictions_df[label_column], predictions_df[score_column]
+    )
+    rmse = np.sqrt(
+        sklearn.metrics.mean_squared_error(
+            predictions_df[label_column], predictions_df[score_column]
         )
     )
-    qi = df[pred_col].sum() / df[label_col].sum()
+    rmsle = np.sqrt(
+        sklearn.metrics.mean_squared_log_error(
+            predictions_df[[label_column, "lit_0"]].max(axis=1),
+            predictions_df[[score_column, "lit_0"]].max(axis=1),
+        )
+    )
+    qi = predictions_df[score_column].sum() / predictions_df[label_column].sum()
 
     ax.text(
         x=0.05,
