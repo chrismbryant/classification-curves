@@ -256,7 +256,7 @@ def plot_predictions(
     if scatter_density:
         norm = mpl.colors.Normalize(0, vmax)
         ax = fig.add_subplot(1, 1, 1, projection="scatter_density")
-        ax.scatter_density(x, y, cmap=cmap, norm=norm, dpi=dpi)
+        ax.scatter_density(x, y, cmap=cmap, norm=norm, dpi=dpi)  # type: ignore
     else:
         ax.scatter(x=x, y=y, s=size, color=color, marker=".", ec="none", alpha=alpha)
 
