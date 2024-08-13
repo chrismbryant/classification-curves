@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import psutil
 from numpy.random import default_rng
-from scipy.integrate import trapz
+from scipy.integrate import trapezoid
 from tqdm import tqdm
 from typing_extensions import Literal
 
@@ -441,13 +441,13 @@ class MetricsGenerator(
             "tot_weight_pos": tot_weight_pos,
             "tot_weight_neg": tot_weight_neg,
             "imbalance": imbalance,
-            "roc_auc": np.abs(trapz(df["recall"], df["fpr"])),
-            "pr_auc": np.abs(trapz(df["precision"], df["recall"])),
-            "rf_auc": np.abs(trapz(df["recall"], df["frac"])),
-            "roc_auc_w": np.abs(trapz(df["recall_w"], df["fpr_w"])),
-            "pr_auc_w": np.abs(trapz(df["precision_w"], df["recall_w"])),
-            "rf_auc_w": np.abs(trapz(df["recall_w"], df["frac_w"])),
-            "prg_auc": np.abs(trapz(df["precision_gain"], df["recall_gain"])),
+            "roc_auc": np.abs(trapezoid(df["recall"], df["fpr"])),
+            "pr_auc": np.abs(trapezoid(df["precision"], df["recall"])),
+            "rf_auc": np.abs(trapezoid(df["recall"], df["frac"])),
+            "roc_auc_w": np.abs(trapezoid(df["recall_w"], df["fpr_w"])),
+            "pr_auc_w": np.abs(trapezoid(df["precision_w"], df["recall_w"])),
+            "rf_auc_w": np.abs(trapezoid(df["recall_w"], df["frac_w"])),
+            "prg_auc": np.abs(trapezoid(df["precision_gain"], df["recall_gain"])),
         }
         scalars = pd.DataFrame([scalars])
 
